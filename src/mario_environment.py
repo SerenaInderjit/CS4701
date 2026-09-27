@@ -11,8 +11,11 @@ class MarioEnvironment:
 
     def reset(self) -> Dict[str, Any]:
         observation = self.env.reset()
+
         return {
             "observation": observation,
+            "episode_ended": False,
+            "info": {},
         }
 
     def step(self, action: int) -> Dict[str, Any]:
@@ -33,3 +36,5 @@ class MarioEnvironment:
 
     def close(self) -> None:
         self.env.close()
+
+    

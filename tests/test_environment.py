@@ -1,4 +1,4 @@
-from src.environment.mario_environment import MarioEnvironment
+from src.mario_environment import MarioEnvironment
 
 def test_mario_environment():
     env = MarioEnvironment()
