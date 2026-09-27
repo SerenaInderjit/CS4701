@@ -1,7 +1,17 @@
 #!/bin/bash
 
-set -e
+. .venv/bin/activate
+export PYTHONPATH="$PWD"
 
-source .venv/bin/activate
-
-echo "CS4701 environment ready."
+case "$1" in
+    test)
+        pytest
+        ;;
+    play)
+        python scripts/play_mario.py
+        ;;
+    *)
+        echo "Usage: ./run.sh {test|play}"
+        exit 1
+        ;;
+esac

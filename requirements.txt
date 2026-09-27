@@ -1,8 +1,9 @@
 gymnasium
-gym-super-mario-bros==7.4.0
+gym==0.25.1
 nes-py==8.2.1
 torch
 matplotlib
 pyyaml
 tqdm
 numpy<2
+pytest
