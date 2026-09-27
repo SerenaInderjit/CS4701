@@ -1,0 +1,8 @@
+gymnasium
+gym-super-mario-bros==7.4.0
+nes-py==8.2.1
+torch
+matplotlib
+pyyaml
+tqdm
+numpy<2
