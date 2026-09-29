@@ -1,0 +1,386 @@
+{
+  "random": {
+    "num_episodes": 20,
+    "mean_reward": 549.33,
+    "mean_distance": 611.25,
+    "best_distance": 1122,
+    "completion_rate": 0.0,
+    "mean_episode_length": 278.25,
+    "wall_time_seconds": 32.559754848480225,
+    "steps_per_second": 170.9165202839282,
+    "episodes": [
+      {
+        "episode": 0,
+        "length": 187,
+        "total_reward": 660.3,
+        "max_x_pos": 723,
+        "final_x_pos": 715,
+        "flag_get": false,
+        "duration_seconds": 1.0527377128601074
+      },
+      {
+        "episode": 1,
+        "length": 68,
+        "total_reward": 226.7,
+        "max_x_pos": 283,
+        "final_x_pos": 283,
+        "flag_get": false,
+        "duration_seconds": 0.38250231742858887
+      },
+      {
+        "episode": 2,
+        "length": 49,
+        "total_reward": 235.1,
+        "max_x_pos": 291,
+        "final_x_pos": 291,
+        "flag_get": false,
+        "duration_seconds": 0.3143749237060547
+      },
+      {
+        "episode": 3,
+        "length": 37,
+        "total_reward": 244.3,
+        "max_x_pos": 300,
+        "final_x_pos": 300,
+        "flag_get": false,
+        "duration_seconds": 0.21401691436767578
+      },
+      {
+        "episode": 4,
+        "length": 56,
+        "total_reward": 222.9,
+        "max_x_pos": 279,
+        "final_x_pos": 279,
+        "flag_get": false,
+        "duration_seconds": 0.31229710578918457
+      },
+      {
+        "episode": 5,
+        "length": 532,
+        "total_reward": 752.4,
+        "max_x_pos": 818,
+        "final_x_pos": 818,
+        "flag_get": false,
+        "duration_seconds": 3.0637967586517334
+      },
+      {
+        "episode": 6,
+        "length": 139,
+        "total_reward": 653.3,
+        "max_x_pos": 722,
+        "final_x_pos": 711,
+        "flag_get": false,
+        "duration_seconds": 0.7942571640014648
+      },
+      {
+        "episode": 7,
+        "length": 387,
+        "total_reward": 1058.3,
+        "max_x_pos": 1122,
+        "final_x_pos": 1120,
+        "flag_get": false,
+        "duration_seconds": 2.2453720569610596
+      },
+      {
+        "episode": 8,
+        "length": 55,
+        "total_reward": 222.9,
+        "max_x_pos": 279,
+        "final_x_pos": 279,
+        "flag_get": false,
+        "duration_seconds": 0.31069493293762207
+      },
+      {
+        "episode": 9,
+        "length": 155,
+        "total_reward": 618.0,
+        "max_x_pos": 676,
+        "final_x_pos": 676,
+        "flag_get": false,
+        "duration_seconds": 0.8779292106628418
+      },
+      {
+        "episode": 10,
+        "length": 34,
+        "total_reward": 252.4,
+        "max_x_pos": 308,
+        "final_x_pos": 308,
+        "flag_get": false,
+        "duration_seconds": 0.19044089317321777
+      },
+      {
+        "episode": 11,
+        "length": 647,
+        "total_reward": 830.1,
+        "max_x_pos": 898,
+        "final_x_pos": 898,
+        "flag_get": false,
+        "duration_seconds": 3.7355399131774902
+      },
+      {
+        "episode": 12,
+        "length": 51,
+        "total_reward": 215.0,
+        "max_x_pos": 271,
+        "final_x_pos": 271,
+        "flag_get": false,
+        "duration_seconds": 0.2880430221557617
+      },
+      {
+        "episode": 13,
+        "length": 230,
+        "total_reward": 655.5,
+        "max_x_pos": 722,
+        "final_x_pos": 715,
+        "flag_get": false,
+        "duration_seconds": 1.3443999290466309
+      },
+      {
+        "episode": 14,
+        "length": 112,
+        "total_reward": 634.8,
+        "max_x_pos": 692,
+        "final_x_pos": 692,
+        "flag_get": false,
+        "duration_seconds": 0.6665022373199463
+      },
+      {
+        "episode": 15,
+        "length": 2000,
+        "total_reward": 798.0,
+        "max_x_pos": 899,
+        "final_x_pos": 878,
+        "flag_get": false,
+        "duration_seconds": 11.673985958099365
+      },
+      {
+        "episode": 16,
+        "length": 292,
+        "total_reward": 837.2,
+        "max_x_pos": 898,
+        "final_x_pos": 898,
+        "flag_get": false,
+        "duration_seconds": 1.9127607345581055
+      },
+      {
+        "episode": 17,
+        "length": 216,
+        "total_reward": 838.7,
+        "max_x_pos": 898,
+        "final_x_pos": 898,
+        "flag_get": false,
+        "duration_seconds": 1.3139750957489014
+      },
+      {
+        "episode": 18,
+        "length": 53,
+        "total_reward": 230.0,
+        "max_x_pos": 285,
+        "final_x_pos": 285,
+        "flag_get": false,
+        "duration_seconds": 0.30884814262390137
+      },
+      {
+        "episode": 19,
+        "length": 265,
+        "total_reward": 800.7,
+        "max_x_pos": 861,
+        "final_x_pos": 861,
+        "flag_get": false,
+        "duration_seconds": 1.5572078227996826
+      }
+    ]
+  },
+  "always_right": {
+    "num_episodes": 20,
+    "mean_reward": 240.2,
+    "mean_distance": 296.0,
+    "best_distance": 296,
+    "completion_rate": 0.0,
+    "mean_episode_length": 40.0,
+    "wall_time_seconds": 4.93412184715271,
+    "steps_per_second": 162.13624729629427,
+    "episodes": [
+      {
+        "episode": 0,
+        "length": 40,
+        "total_reward": 240.2,
+        "max_x_pos": 296,
+        "final_x_pos": 296,
+        "flag_get": false,
+        "duration_seconds": 0.2265760898590088
+      },
+      {
+        "episode": 1,
+        "length": 40,
+        "total_reward": 240.2,
+        "max_x_pos": 296,
+        "final_x_pos": 296,
+        "flag_get": false,
+        "duration_seconds": 0.22593402862548828
+      },
+      {
+        "episode": 2,
+        "length": 40,
+        "total_reward": 240.2,
+        "max_x_pos": 296,
+        "final_x_pos": 296,
+        "flag_get": false,
+        "duration_seconds": 0.23600268363952637
+      },
+      {
+        "episode": 3,
+        "length": 40,
+        "total_reward": 240.2,
+        "max_x_pos": 296,
+        "final_x_pos": 296,
+        "flag_get": false,
+        "duration_seconds": 0.23670601844787598
+      },
+      {
+        "episode": 4,
+        "length": 40,
+        "total_reward": 240.2,
+        "max_x_pos": 296,
+        "final_x_pos": 296,
+        "flag_get": false,
+        "duration_seconds": 0.24347615242004395
+      },
+      {
+        "episode": 5,
+        "length": 40,
+        "total_reward": 240.2,
+        "max_x_pos": 296,
+        "final_x_pos": 296,
+        "flag_get": false,
+        "duration_seconds": 0.24608087539672852
+      },
+      {
+        "episode": 6,
+        "length": 40,
+        "total_reward": 240.2,
+        "max_x_pos": 296,
+        "final_x_pos": 296,
+        "flag_get": false,
+        "duration_seconds": 0.24709725379943848
+      },
+      {
+        "episode": 7,
+        "length": 40,
+        "total_reward": 240.2,
+        "max_x_pos": 296,
+        "final_x_pos": 296,
+        "flag_get": false,
+        "duration_seconds": 0.24916291236877441
+      },
+      {
+        "episode": 8,
+        "length": 40,
+        "total_reward": 240.2,
+        "max_x_pos": 296,
+        "final_x_pos": 296,
+        "flag_get": false,
+        "duration_seconds": 0.2606661319732666
+      },
+      {
+        "episode": 9,
+        "length": 40,
+        "total_reward": 240.2,
+        "max_x_pos": 296,
+        "final_x_pos": 296,
+        "flag_get": false,
+        "duration_seconds": 0.26326775550842285
+      },
+      {
+        "episode": 10,
+        "length": 40,
+        "total_reward": 240.2,
+        "max_x_pos": 296,
+        "final_x_pos": 296,
+        "flag_get": false,
+        "duration_seconds": 0.24571800231933594
+      },
+      {
+        "episode": 11,
+        "length": 40,
+        "total_reward": 240.2,
+        "max_x_pos": 296,
+        "final_x_pos": 296,
+        "flag_get": false,
+        "duration_seconds": 0.27483510971069336
+      },
+      {
+        "episode": 12,
+        "length": 40,
+        "total_reward": 240.2,
+        "max_x_pos": 296,
+        "final_x_pos": 296,
+        "flag_get": false,
+        "duration_seconds": 0.2443699836730957
+      },
+      {
+        "episode": 13,
+        "length": 40,
+        "total_reward": 240.2,
+        "max_x_pos": 296,
+        "final_x_pos": 296,
+        "flag_get": false,
+        "duration_seconds": 0.24042201042175293
+      },
+      {
+        "episode": 14,
+        "length": 40,
+        "total_reward": 240.2,
+        "max_x_pos": 296,
+        "final_x_pos": 296,
+        "flag_get": false,
+        "duration_seconds": 0.25263404846191406
+      },
+      {
+        "episode": 15,
+        "length": 40,
+        "total_reward": 240.2,
+        "max_x_pos": 296,
+        "final_x_pos": 296,
+        "flag_get": false,
+        "duration_seconds": 0.23995590209960938
+      },
+      {
+        "episode": 16,
+        "length": 40,
+        "total_reward": 240.2,
+        "max_x_pos": 296,
+        "final_x_pos": 296,
+        "flag_get": false,
+        "duration_seconds": 0.2504160404205322
+      },
+      {
+        "episode": 17,
+        "length": 40,
+        "total_reward": 240.2,
+        "max_x_pos": 296,
+        "final_x_pos": 296,
+        "flag_get": false,
+        "duration_seconds": 0.2527480125427246
+      },
+      {
+        "episode": 18,
+        "length": 40,
+        "total_reward": 240.2,
+        "max_x_pos": 296,
+        "final_x_pos": 296,
+        "flag_get": false,
+        "duration_seconds": 0.2535090446472168
+      },
+      {
+        "episode": 19,
+        "length": 40,
+        "total_reward": 240.2,
+        "max_x_pos": 296,
+        "final_x_pos": 296,
+        "flag_get": false,
+        "duration_seconds": 0.24452900886535645
+      }
+    ]
+  }
+}

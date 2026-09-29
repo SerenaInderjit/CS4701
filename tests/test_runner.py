@@ -1,17 +1,12 @@
 from src.mario_environment import MarioEnvironment
 from src.runner import Runner
 from src.logger import Logger
-from random import randrange
-
-
-class RandomPolicy:
-    def act(self, observation):
-        return randrange(5)
+from src.policies import RandomPolicy
 
 
 def test_runner():
     environment = MarioEnvironment()
-    policy = RandomPolicy()
+    policy = RandomPolicy(num_actions=environment.num_actions)
     logger = Logger()
 
     runner = Runner(environment, policy, logger, render=True)
@@ -25,9 +20,10 @@ def test_runner():
         assert "info" in result
 
         assert len(logger.records) > 0
+        assert len(logger.episodes) == 1
 
         for record in logger.records:
-            assert 0 <= record["action"] < 5
+            assert 0 <= record["action"] < environment.num_actions
             assert isinstance(record["reward"], (int, float))
             assert isinstance(record["info"], dict)
     finally:

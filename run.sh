@@ -10,8 +10,12 @@ case "$1" in
     play)
         python scripts/play_mario.py
         ;;
+    eval)
+        shift
+        python scripts/evaluate_baseline.py "$@"
+        ;;
     *)
-        echo "Usage: ./run.sh {test|play}"
+        echo "Usage: ./run.sh {test|play|eval [args]}"
         exit 1
         ;;
 esac
