@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Run {{ run.id }} — RL Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <nav>
+        <h1>RL Training Dashboard</h1>
+        <a href="/">Overview</a>
+        <a href="/train">Train</a>
+    </nav>
+    <main>
+        <h2>{{ run.id }}</h2>
+
+        <div class="stats">
+            <div class="stat">
+                <span class="label">Updates</span>
+                <span class="value">{{ run.num_updates }}</span>
+            </div>
+            <div class="stat">
+                <span class="label">Best Distance</span>
+                <span class="value">{{ "%.0f"|format(run.best_distance) if run.best_distance else "-" }}</span>
+            </div>
+            <div class="stat">
+                <span class="label">Device</span>
+                <span class="value">{{ run.config.device if run.config else "-" }}</span>
+            </div>
+        </div>
+
+        <h3>Live Metrics</h3>
+        <div class="charts">
+            <div class="chart-container">
+                <canvas id="policyLossChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <canvas id="valueLossChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <canvas id="distanceChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <canvas id="rewardChart"></canvas>
+            </div>
+        </div>
+
+        <h3>Matplotlib Plots</h3>
+        <div class="plots">
+            <img src="/api/run/{{ run.id }}/plot/policy_loss" alt="policy_loss">
+            <img src="/api/run/{{ run.id }}/plot/value_loss" alt="value_loss">
+            <img src="/api/run/{{ run.id }}/plot/mean_distance" alt="mean_distance">
+            <img src="/api/run/{{ run.id }}/plot/mean_reward" alt="mean_reward">
+        </div>
+
+        <h3>Config</h3>
+        <pre>{{ run.config | tojson(indent=2) if run.config else "No config" }}</pre>
+    </main>
+
+    <script>
+        const runId = "{{ run.id }}";
+
+        async function fetchMetrics() {
+            const res = await fetch(`/api/run/${runId}/metrics`);
+            return res.json();
+        }
+
+        function createChart(canvasId, label, color) {
+            const ctx = document.getElementById(canvasId);
+            return new Chart(ctx, {
+                type: 'line',
+                data: { labels: [], datasets: [{ label, data: [], borderColor: color, tension: 0.1 }] },
+                options: { responsive: true, animation: false, scales: { x: { display: false } } }
+            });
+        }
+
+        const charts = {
+            policyLoss: createChart('policyLossChart', 'Policy Loss', 'rgb(75, 192, 192)'),
+            valueLoss: createChart('valueLossChart', 'Value Loss', 'rgb(255, 99, 132)'),
+            distance: createChart('distanceChart', 'Mean Distance', 'rgb(54, 162, 235)'),
+            reward: createChart('rewardChart', 'Mean Reward', 'rgb(255, 206, 86)'),
+        };
+
+        async function updateCharts() {
+            const metrics = await fetchMetrics();
+            const labels = metrics.map((_, i) => i + 1);
+
+            const update = (chart, key) => {
+                chart.data.labels = labels;
+                chart.data.datasets[0].data = metrics.map(m => m[key]);
+                chart.update('none');
+            };
+
+            update(charts.policyLoss, 'policy_loss');
+            update(charts.valueLoss, 'value_loss');
+            update(charts.distance, 'mean_distance');
+            update(charts.reward, 'mean_reward');
+        }
+
+        updateCharts();
+        setInterval(updateCharts, 2000);
+    </script>
+</body>
+</html>

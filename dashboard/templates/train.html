@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Train — RL Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav>
+        <h1>RL Training Dashboard</h1>
+        <a href="/">Overview</a>
+        <a href="/train">Train</a>
+    </nav>
+    <main>
+        <h2>Start Training</h2>
+
+        <div class="form-group">
+            <label>Config Preset:</label>
+            <select id="configPreset">
+                {% for c in configs %}
+                <option value="{{ c.name }}">{{ c.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Config (YAML):</label>
+            <textarea id="configEditor" rows="20"></textarea>
+        </div>
+
+        <div class="button-group">
+            <button id="startBtn" onclick="startTraining()">Start Training</button>
+            <button id="stopBtn" onclick="stopTraining()" disabled>Stop Training</button>
+        </div>
+
+        <div id="status"></div>
+
+        <h3>Training Log</h3>
+        <pre id="log"></pre>
+    </main>
+
+    <script>
+        const presets = {
+            {% for c in configs %}
+            "{{ c.name }}": {{ c.config | tojson }},
+            {% endfor %}
+        };
+
+        const presetSelect = document.getElementById('configPreset');
+        const editor = document.getElementById('configEditor');
+
+        function loadPreset() {
+            const name = presetSelect.value;
+            if (presets[name]) {
+                editor.value = JSON.stringify(presets[name], null, 2);
+            }
+        }
+
+        presetSelect.addEventListener('change', loadPreset);
+        loadPreset();
+
+        async function startTraining() {
+            const config = JSON.parse(editor.value);
+            const res = await fetch('/api/train', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config),
+            });
+            const data = await res.json();
+            document.getElementById('status').textContent = `Training started (PID ${data.pid})`;
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+        }
+
+        async function stopTraining() {
+            await fetch('/api/train/stop', { method: 'POST' });
+            document.getElementById('status').textContent = 'Training stopped';
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+        }
+
+        async function checkStatus() {
+            const res = await fetch('/api/train/status');
+            const data = await res.json();
+            if (!data.running) {
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+            }
+        }
+
+        setInterval(checkStatus, 2000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>RL Training Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <nav>
+        <h1>RL Training Dashboard</h1>
+        <a href="/">Overview</a>
+        <a href="/train">Train</a>
+    </nav>
+    <main>
+        <h2>All Runs</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Run</th>
+                    <th>Updates</th>
+                    <th>Best Distance</th>
+                    <th>Mean Distance</th>
+                    <th>Device</th>
+                    <th>Started</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in runs %}
+                <tr>
+                    <td><a href="/run/{{ run.id }}">{{ run.id }}</a></td>
+                    <td>{{ run.num_updates }}</td>
+                    <td>{{ "%.0f"|format(run.best_distance) if run.best_distance else "-" }}</td>
+                    <td>{{ "%.0f"|format(run.latest.mean_distance) if run.latest and run.latest.mean_distance else "-" }}</td>
+                    <td>{{ run.config.device if run.config else "-" }}</td>
+                    <td>{{ run.started_at if run.started_at else "-" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </main>
+</body>
+</html>

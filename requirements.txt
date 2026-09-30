@@ -5,3 +5,7 @@ torch
 pyyaml
 numpy<2
 pytest
+fastapi
+uvicorn
+jinja2
+matplotlib
