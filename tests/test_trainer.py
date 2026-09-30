@@ -1,6 +1,8 @@
+import json
 import os
 
 import numpy as np
+import pytest
 import torch
 
 from src.training.rollout_buffer import RolloutBuffer
@@ -106,7 +108,6 @@ def test_train_writes_run_tracking_files(tmp_path):
 
     metrics_lines = (run_dir / "metrics.jsonl").read_text().strip().splitlines()
     assert len(metrics_lines) == 2
-    import json
     first = json.loads(metrics_lines[0])
     assert first["update"] == 1
     assert "policy_loss" in first and "value_loss" in first
@@ -135,6 +136,5 @@ def test_resume_restores_latest_checkpoint(tmp_path):
 def test_resume_without_checkpoint_raises(tmp_path):
     trainer = make_trainer(tmp_path)  # nothing saved yet
 
-    import pytest
     with pytest.raises(FileNotFoundError):
         trainer.resume()

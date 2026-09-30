@@ -2,7 +2,7 @@ import json
 import time
 from typing import Any, Dict, Optional
 
-from src.training.logger import Logger
+from src.training.logger import Logger, _json_default
 from src.training.runner import Runner
 
 
@@ -59,4 +59,4 @@ def format_evaluation(name: str, results: Dict[str, Any]) -> str:
 def save_evaluation(path: str, all_results: Dict[str, Dict[str, Any]]) -> None:
     """Save {agent_name: results} to JSON for later plotting/comparison."""
     with open(path, "w") as f:
-        json.dump(all_results, f, indent=2, default=lambda v: v.item() if hasattr(v, "item") else str(v))
+        json.dump(all_results, f, indent=2, default=_json_default)

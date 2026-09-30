@@ -1,4 +1,4 @@
-from typing import Dict, Tuple, Any
+from typing import Any, Dict, Tuple
 
 import numpy as np
 import torch
@@ -8,10 +8,10 @@ from src.algorithms.cnn import ConvolutionalNeuralNetwork
 
 
 class PPO:
-    """Proximal Policy Optimization agent.
+    """Proximal Policy Optimization agent (Schulman et al., 2017).
 
-    Two CNNs (policy + value) trained with clipped surrogate objectives on
-    minibatches of a rollout, with Generalized Advantage Estimation.
+    Two CNNs: a policy pi_theta(a|s) and a value function V_phi(s), trained
+    with clipped surrogate objectives on minibatches of a rollout.
 
     `act()` returns (action, {"log_prob": ..., "value": ...}) so the Runner
     can store everything the update needs in the rollout buffer.
@@ -47,7 +47,7 @@ class PPO:
         return torch.as_tensor(observation, dtype=torch.float32, device=self.device).unsqueeze(0)
 
     def evaluate(self, observation) -> Tuple[torch.distributions.Categorical, torch.Tensor]:
-        """Return (action distribution, state value) for one observation."""
+        """Return (pi_theta(·|s), V_phi(s)) for one observation."""
         tensor = self._to_tensor(observation)
         with torch.no_grad():
             logits = self.policy_model(tensor)
@@ -55,7 +55,7 @@ class PPO:
         return torch.distributions.Categorical(logits=logits), value
 
     def act(self, observation) -> Tuple[int, Dict[str, float]]:
-        """Sample an action; extras carry log_prob and value for the rollout buffer."""
+        """Sample a_t ~ pi_theta(·|s_t); extras carry log pi_theta(a_t|s_t) and V_phi(s_t)."""
         distribution, value = self.evaluate(observation)
         action = distribution.sample()
         extras = {
@@ -65,7 +65,7 @@ class PPO:
         return int(action.item()), extras
 
     def value_of(self, observation) -> float:
-        """Value of a single observation, used to bootstrap the final GAE step."""
+        """V_phi(s), used to bootstrap the final GAE step."""
         tensor = self._to_tensor(observation)
         with torch.no_grad():
             return self.value_model(tensor).squeeze().item()
@@ -79,11 +79,13 @@ class PPO:
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Generalized Advantage Estimation over a finished rollout.
 
-        delta_t = r_t + gamma * V(s_{t+1}) * (1 - done_t) - V(s_t)
+        delta_t = r_t + gamma * (1 - done_t) * V(s_{t+1}) - V(s_t)
         A_t     = delta_t + gamma * lambda * (1 - done_t) * A_{t+1}
 
-        `last_value` bootstraps V(s_T) for the final step, so truncated
-        rollouts still get credit for the state they end in.
+        returns_t = A_t + V(s_t)  (regression target for V_phi)
+
+        `last_value` is V(s_T) for the final step, so a rollout truncated at
+        an episode boundary bootstraps from the state it ends in.
         """
         rewards = np.asarray(rewards, dtype=np.float32)
         dones = np.asarray(dones, dtype=np.float32)
@@ -109,15 +111,20 @@ class PPO:
         advantages,
         returns,
     ) -> Dict[str, float]:
-        """Run `epochs` of minibatch updates over the rollout. Returns mean losses."""
+        """One PPO update: `epochs` passes over the rollout in minibatches.
+
+        For each minibatch B:
+            L^CLIP = -mean(min(r_t * A_t, clip(r_t, 1-eps, 1+eps) * A_t))
+            L^VF   = mean((V_phi(s_t) - R_t)^2)
+        where r_t = pi_theta(a_t|s_t) / pi_theta_old(a_t|s_t).
+        """
         obs = torch.as_tensor(observations, dtype=torch.float32, device=self.device)
         act = torch.as_tensor(actions, dtype=torch.long, device=self.device)
         old_log_probs = torch.as_tensor(old_log_probs, dtype=torch.float32, device=self.device)
         advantages = torch.as_tensor(advantages, dtype=torch.float32, device=self.device)
         returns = torch.as_tensor(returns, dtype=torch.float32, device=self.device)
 
-        # Advantage normalization: standard PPO practice, keeps the clipped
-        # objective well-scaled across updates.
+        # Advantage normalization keeps the clipped objective well-scaled.
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
         n = obs.shape[0]
@@ -135,14 +142,12 @@ class PPO:
         }
 
     def update_policy(self, observations, actions, old_log_probs, advantages):
-        # New policy distribution.
+        """L^CLIP on one minibatch: clipped surrogate policy gradient."""
         logits = self.policy_model(observations)
         distribution = torch.distributions.Categorical(logits=logits)
         new_log_probs = distribution.log_prob(actions)
 
-        # P_theta(X_t = x | S_t = s) / P_theta_k(X_t = x | S_t = s)
         ratio = torch.exp(new_log_probs - old_log_probs)
-
         clipped_ratio = torch.clamp(ratio, 1.0 - self.epsilon, 1.0 + self.epsilon)
         objective = torch.minimum(ratio * advantages, clipped_ratio * advantages)
 
@@ -153,10 +158,9 @@ class PPO:
         return policy_loss.item()
 
     def update_value(self, observations, returns):
-        # estimate of E[Yt | St]
-        expected_returns = self.value_model(observations).squeeze(-1)
-        # l2 regression on expected retuns
-        value_loss = F.mse_loss(expected_returns, returns)
+        """L^VF on one minibatch: MSE between V_phi(s) and the GAE returns."""
+        predicted = self.value_model(observations).squeeze(-1)
+        value_loss = F.mse_loss(predicted, returns)
         self.value_optimizer.zero_grad()
         value_loss.backward()
         self.value_optimizer.step()

@@ -48,10 +48,6 @@ class Runner:
         self._result = None  # this episode is finished; don't resume it in collect_rollout
         return result
 
-    def reset(self):
-        """Discard any in-progress episode so the next rollout starts fresh."""
-        self._result = None
-
     def collect_rollout(self, num_steps, buffer):
         """Collect `num_steps` transitions into `buffer`, across episode boundaries.
 

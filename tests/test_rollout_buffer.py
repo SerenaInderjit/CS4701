@@ -38,19 +38,6 @@ def test_full_and_clear():
     assert len(buffer) == 0 and not buffer.is_full
 
 
-def test_save_and_load_roundtrip(tmp_path):
-    buffer = make_buffer()
-    buffer.add(np.full((2, 3, 3), 7), 2, 1.0, False, log_prob=-1.0, value=0.5)
-    buffer.set_last_observation(np.full((2, 3, 3), 9))
-    path = str(tmp_path / "rollout.npz")
-    buffer.save(path)
-
-    loaded = RolloutBuffer.load(path)
-    original, restored = buffer.get(), loaded.get()
-    for key in original:
-        assert np.array_equal(original[key], restored[key])
-
-
 def test_collect_rollout_stores_aligned_transitions_across_episodes():
     environment = FakeEnvironment(episode_length=4)
     logger = Logger()

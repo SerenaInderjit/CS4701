@@ -88,6 +88,3 @@ class Logger:
 
     def info(self, message):
         self.logger.info(message)
-
-    def error(self, message, exc_info=False):
-        self.logger.error(message, exc_info=exc_info)

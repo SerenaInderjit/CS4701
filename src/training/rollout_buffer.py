@@ -88,28 +88,3 @@ class RolloutBuffer:
         if self.last_observation is not None:
             data["last_observation"] = self.last_observation.copy()
         return data
-
-    def save(self, path: str) -> None:
-        """Save the stored transitions to a compressed .npz file."""
-        np.savez_compressed(path, **self.get())
-
-    @classmethod
-    def load(cls, path: str) -> "RolloutBuffer":
-        with np.load(path) as data:
-            n = len(data["actions"])
-            observations = data["observations"]
-            buffer = cls(
-                capacity=max(n, 1),
-                observation_shape=observations.shape[1:],
-                observation_dtype=observations.dtype,
-            )
-            buffer.observations[:n] = observations
-            buffer.actions[:n] = data["actions"]
-            buffer.rewards[:n] = data["rewards"]
-            buffer.dones[:n] = data["dones"]
-            buffer.log_probs[:n] = data["log_probs"]
-            buffer.values[:n] = data["values"]
-            buffer.size = n
-            if "last_observation" in data:
-                buffer.set_last_observation(data["last_observation"])
-        return buffer

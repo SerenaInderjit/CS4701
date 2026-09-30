@@ -8,6 +8,7 @@ Each run writes its resolved config, per-update metrics and episode log to
 runs/ppo_<timestamp>/ (gitignored).
 """
 import argparse
+import json
 import logging
 import os
 from datetime import datetime
@@ -57,7 +58,6 @@ def main():
     os.makedirs(run_dir, exist_ok=True)
     save_config(config, os.path.join(run_dir, "config.yaml"))
     with open(os.path.join(run_dir, "run.json"), "w") as f:
-        import json
         json.dump({
             "git_commit": git_commit_hash(),
             "seed": config["seed"],

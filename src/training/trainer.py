@@ -45,9 +45,10 @@ class Trainer:
         self.logger.info(f"Starting PPO training for {updates} updates")
         for update in range(start, updates + 1):
             metrics = self._update()
-            self._log_update(update, updates, metrics)
+            summary = self.logger.summary(last_n=10)
+            self._log_update(update, updates, metrics, summary)
             if update % self.checkpoint_every == 0 or update == updates:
-                self._save_checkpoint(update, metrics)
+                self._save_checkpoint(update, metrics, summary)
         if self.run_dir is not None:
             self.logger.save_episodes(os.path.join(self.run_dir, "episodes.json"))
         self.logger.info("Training finished")
@@ -76,8 +77,7 @@ class Trainer:
         self.buffer.clear()
         return metrics
 
-    def _log_update(self, update: int, updates: int, metrics: dict) -> None:
-        summary = self.logger.summary(last_n=10)
+    def _log_update(self, update: int, updates: int, metrics: dict, summary: dict) -> None:
         self.logger.info(
             f"update {update}/{updates} | "
             f"policy_loss={metrics['policy_loss']:.4f} | "
@@ -99,11 +99,10 @@ class Trainer:
             with open(os.path.join(self.run_dir, "metrics.jsonl"), "a") as f:
                 f.write(json.dumps(record) + "\n")
 
-    def _save_checkpoint(self, update: int, metrics: dict) -> None:
+    def _save_checkpoint(self, update: int, metrics: dict, summary: dict) -> None:
         # The policy model is what evaluation/playback needs; the value model and
         # both optimizers ride along in additional_state so resume restores the
         # full agent.
-        summary = self.logger.summary(last_n=10)
         score = summary.get("best_distance")
         path = self.checkpoints.save(
             self.agent.policy_model,
