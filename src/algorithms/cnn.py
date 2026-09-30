@@ -4,9 +4,8 @@ import torch.nn as nn
 PIXEL_VALUE_MAX = 255.0
 
 class ConvolutionalNeuralNetwork(nn.Module):
-    
 
-    def __init__(self, output_dim: int, conv_channels=(32, 64, 64), hidden_dim=512):
+    def __init__(self, output_dim: int, conv_channels=(32, 64, 64), hidden_dim=512, frame_size=84):
         super().__init__()
 
         self.features = nn.Sequential(
@@ -19,7 +18,7 @@ class ConvolutionalNeuralNetwork(nn.Module):
         )
 
         with torch.no_grad():
-            dummy = torch.zeros(1, 4, 84, 84)
+            dummy = torch.zeros(1, 4, frame_size, frame_size)
             feature_size = self.features(dummy).flatten(1).shape[1]
 
         self.shared = nn.Sequential(nn.Flatten(), nn.Linear(feature_size, hidden_dim), nn.ReLU())

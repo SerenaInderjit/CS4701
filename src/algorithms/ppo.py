@@ -28,8 +28,10 @@ class PPO:
         epochs: int = 4,
         minibatch_size: int = 64,
         device: str = "cpu",
+        conv_channels: Tuple[int, int, int] = (64, 128, 128),
+        hidden_dim: int = 1024,
     ):
-        # The CNN is fixed for 4-channel stacked 84x84 input; observation_shape
+        # The CNN is fixed for 4-channel stacked input; observation_shape
         # is accepted so callers can pass env.observation_shape uniformly.
         self.gamma = gamma
         self.gae_lambda = gae_lambda
@@ -38,8 +40,13 @@ class PPO:
         self.minibatch_size = minibatch_size
         self.device = torch.device(device)
 
-        self.policy_model = ConvolutionalNeuralNetwork(output_dim=num_actions).to(self.device)
-        self.value_model = ConvolutionalNeuralNetwork(output_dim=1).to(self.device)
+        frame_size = observation_shape[-1] if len(observation_shape) >= 2 else 84
+        self.policy_model = ConvolutionalNeuralNetwork(
+            output_dim=num_actions, conv_channels=conv_channels, hidden_dim=hidden_dim, frame_size=frame_size
+        ).to(self.device)
+        self.value_model = ConvolutionalNeuralNetwork(
+            output_dim=1, conv_channels=conv_channels, hidden_dim=hidden_dim, frame_size=frame_size
+        ).to(self.device)
         self.policy_optimizer = torch.optim.Adam(self.policy_model.parameters(), lr=learning_rate)
         self.value_optimizer = torch.optim.Adam(self.value_model.parameters(), lr=learning_rate)
 
@@ -49,7 +56,7 @@ class PPO:
     def evaluate(self, observation) -> Tuple[torch.distributions.Categorical, torch.Tensor]:
         """Return (pi_theta(·|s), V_phi(s)) for one observation."""
         tensor = self._to_tensor(observation)
-        with torch.no_grad():
+        with torch.inference_mode():
             logits = self.policy_model(tensor)
             value = self.value_model(tensor).squeeze()
         return torch.distributions.Categorical(logits=logits), value
@@ -67,7 +74,7 @@ class PPO:
     def value_of(self, observation) -> float:
         """V_phi(s), used to bootstrap the final GAE step."""
         tensor = self._to_tensor(observation)
-        with torch.no_grad():
+        with torch.inference_mode():
             return self.value_model(tensor).squeeze().item()
 
     def compute_gae(
@@ -118,11 +125,12 @@ class PPO:
             L^VF   = mean((V_phi(s_t) - R_t)^2)
         where r_t = pi_theta(a_t|s_t) / pi_theta_old(a_t|s_t).
         """
-        obs = torch.as_tensor(observations, dtype=torch.float32, device=self.device)
-        act = torch.as_tensor(actions, dtype=torch.long, device=self.device)
-        old_log_probs = torch.as_tensor(old_log_probs, dtype=torch.float32, device=self.device)
-        advantages = torch.as_tensor(advantages, dtype=torch.float32, device=self.device)
-        returns = torch.as_tensor(returns, dtype=torch.float32, device=self.device)
+        # from_numpy shares memory with the numpy array (no copy) when possible
+        obs = torch.as_tensor(np.asarray(observations), dtype=torch.float32, device=self.device)
+        act = torch.as_tensor(np.asarray(actions), dtype=torch.long, device=self.device)
+        old_log_probs = torch.as_tensor(np.asarray(old_log_probs), dtype=torch.float32, device=self.device)
+        advantages = torch.as_tensor(np.asarray(advantages), dtype=torch.float32, device=self.device)
+        returns = torch.as_tensor(np.asarray(returns), dtype=torch.float32, device=self.device)
 
         # Advantage normalization keeps the clipped objective well-scaled.
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)

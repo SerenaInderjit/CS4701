@@ -14,12 +14,17 @@ learning_rate: 0.0003
 gamma: 0.99
 gae_lambda: 0.95
 epsilon: 0.2             # PPO clip range
-epochs: 4                # optimization epochs over each rollout
+epochs: 2                # optimization epochs over each rollout
 minibatch_size: 64
+conv_channels: [64, 128, 128]   # CNN conv layer channels
+hidden_dim: 1024                # CNN hidden layer size
 
 # Environment
 frame_skip: 4
 num_stack: 4
+frame_size: 84           # 64 is ~1.7x faster on CPU, but slower on MPS/GPU
 
 # Hardware
-device: cpu
+# Device is auto-detected: MPS (Apple Silicon) > CUDA (NVIDIA) > CPU.
+# Override on the command line if needed: --device cpu, --device cuda, --device mps
+device: auto

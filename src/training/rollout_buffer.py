@@ -75,16 +75,20 @@ class RolloutBuffer:
         self.last_observation = None
 
     def get(self) -> Dict[str, np.ndarray]:
-        """Return the stored transitions (copies) as a dict of arrays."""
+        """Return the stored transitions as a dict of arrays.
+
+        Returns views into the underlying buffers (no copies). The caller must
+        not modify the returned arrays; they become invalid after clear().
+        """
         n = self.size
         data = {
-            "observations": self.observations[:n].copy(),
-            "actions": self.actions[:n].copy(),
-            "rewards": self.rewards[:n].copy(),
-            "dones": self.dones[:n].copy(),
-            "log_probs": self.log_probs[:n].copy(),
-            "values": self.values[:n].copy(),
+            "observations": self.observations[:n],
+            "actions": self.actions[:n],
+            "rewards": self.rewards[:n],
+            "dones": self.dones[:n],
+            "log_probs": self.log_probs[:n],
+            "values": self.values[:n],
         }
         if self.last_observation is not None:
-            data["last_observation"] = self.last_observation.copy()
+            data["last_observation"] = self.last_observation
         return data

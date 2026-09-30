@@ -16,6 +16,7 @@ from datetime import datetime
 from src.algorithms.ppo import PPO
 from src.environment.mario_environment import make_training_environment
 from src.training.config import load_config, save_config
+from src.training.device import resolve_device
 from src.training.reproducibility import git_commit_hash, seed_everything
 from src.training.rollout_buffer import RolloutBuffer
 from src.training.trainer import Trainer
@@ -50,6 +51,7 @@ def main():
     overrides = {k: v for k, v in vars(args).items()
                  if v is not None and k not in ("config", "resume", "run_dir")}
     config.update(overrides)
+    config["device"] = resolve_device(config.get("device", "auto"))
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
     seed_everything(config["seed"])
@@ -68,6 +70,7 @@ def main():
     env = make_training_environment(
         frame_skip=config["frame_skip"],
         num_stack=config["num_stack"],
+        frame_size=(config["frame_size"], config["frame_size"]),
     )
 
     agent = PPO(
@@ -80,6 +83,8 @@ def main():
         epochs=config["epochs"],
         minibatch_size=config["minibatch_size"],
         device=config["device"],
+        conv_channels=tuple(config.get("conv_channels", [64, 128, 128])),
+        hidden_dim=config.get("hidden_dim", 1024),
     )
 
     buffer = RolloutBuffer(
