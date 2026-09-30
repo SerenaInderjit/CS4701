@@ -1,10 +1,10 @@
 import numpy as np
 import pytest
 
-from src.logger import Logger
-from src.policies import ConstantPolicy
-from src.rollout_buffer import RolloutBuffer
-from src.runner import Runner
+from src.policies.baselines import ConstantPolicy
+from src.training.logger import Logger
+from src.training.rollout_buffer import RolloutBuffer
+from src.training.runner import Runner
 from tests.fakes import FakeEnvironment
 
 

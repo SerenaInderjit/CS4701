@@ -64,18 +64,22 @@ class Logger:
         return stats
 
     def summary(self, last_n: Optional[int] = None) -> Dict[str, float]:
-        """Mean statistics over all (or the last `last_n`) finished episodes."""
+        """Mean statistics over all (or the last `last_n`) finished episodes.
+
+        Values are coerced to native Python types so the result is JSON-serializable
+        (episode stats can contain numpy scalars from the emulator info dict).
+        """
         episodes = self.episodes[-last_n:] if last_n else self.episodes
         n = len(episodes)
         if n == 0:
             return {"num_episodes": 0}
         return {
             "num_episodes": n,
-            "mean_reward": sum(e["total_reward"] for e in episodes) / n,
-            "mean_distance": sum(e["max_x_pos"] for e in episodes) / n,
-            "best_distance": max(e["max_x_pos"] for e in episodes),
-            "completion_rate": sum(e["flag_get"] for e in episodes) / n,
-            "mean_episode_length": sum(e["length"] for e in episodes) / n,
+            "mean_reward": float(sum(e["total_reward"] for e in episodes) / n),
+            "mean_distance": float(sum(e["max_x_pos"] for e in episodes) / n),
+            "best_distance": int(max(e["max_x_pos"] for e in episodes)),
+            "completion_rate": float(sum(e["flag_get"] for e in episodes) / n),
+            "mean_episode_length": float(sum(e["length"] for e in episodes) / n),
         }
 
     def save_episodes(self, path: str) -> None:

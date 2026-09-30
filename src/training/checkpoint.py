@@ -12,8 +12,13 @@ def save_checkpoint(
     step: int = 0,
     metrics: Optional[Dict[str, Any]] = None,
     extra: Optional[Dict[str, Any]] = None,
+    additional_state: Optional[Dict[str, Any]] = None,
 ) -> None:
-    """Write a checkpoint atomically (temp file + rename) so a crash can't corrupt it."""
+    """Write a checkpoint atomically (temp file + rename) so a crash can't corrupt it.
+
+    `additional_state` carries extra state dicts (e.g. a PPO value model and its
+    optimizer) that don't fit the single-model signature above.
+    """
     directory = os.path.dirname(path)
     if directory:
         os.makedirs(directory, exist_ok=True)
@@ -24,6 +29,7 @@ def save_checkpoint(
         "step": step,
         "metrics": metrics or {},
         "extra": extra or {},
+        "additional_state": additional_state or {},
     }
     tmp_path = path + ".tmp"
     torch.save(payload, tmp_path)
@@ -89,10 +95,14 @@ class CheckpointManager:
         step: int,
         metrics: Optional[Dict[str, Any]] = None,
         score: Optional[float] = None,
+        additional_state: Optional[Dict[str, Any]] = None,
     ) -> str:
         path = os.path.join(self.directory, f"checkpoint_{step:09d}.pt")
         extra = {"score": score} if score is not None else {}
-        save_checkpoint(path, model, optimizer, step=step, metrics=metrics, extra=extra)
+        save_checkpoint(
+            path, model, optimizer, step=step, metrics=metrics, extra=extra,
+            additional_state=additional_state,
+        )
 
         if score is not None and (self.best_score is None or score > self.best_score):
             self.best_score = score

@@ -1,4 +1,4 @@
-from src.reward import RewardConfig, RewardShaper
+from src.environment.reward import RewardConfig, RewardShaper
 
 
 def info(x, time=400, flag=False):

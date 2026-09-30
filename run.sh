@@ -14,8 +14,12 @@ case "$1" in
         shift
         python scripts/evaluate_baseline.py "$@"
         ;;
+    train)
+        shift
+        python scripts/train.py "$@"
+        ;;
     *)
-        echo "Usage: ./run.sh {test|play|eval [args]}"
+        echo "Usage: ./run.sh {test|play|eval [args]|train [args]}"
         exit 1
         ;;
 esac

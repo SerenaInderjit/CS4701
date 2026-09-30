@@ -1,0 +1,25 @@
+# Default configuration for scripts/train.py (PPO on Super Mario Bros 1-1).
+# Any value here can be overridden from the command line, e.g.:
+#   ./run.sh train --updates 500 --device cpu
+
+# Training loop
+updates: 1000            # number of PPO updates (one rollout + update each)
+rollout_size: 2048       # transitions collected per update
+seed: 0                  # torch / numpy / random seed
+checkpoint_every: 10     # save a checkpoint every N updates (and at the end)
+checkpoint_dir: checkpoints
+
+# Agent
+learning_rate: 0.0003
+gamma: 0.99
+gae_lambda: 0.95
+epsilon: 0.2             # PPO clip range
+epochs: 4                # optimization epochs over each rollout
+minibatch_size: 64
+
+# Environment
+frame_skip: 4
+num_stack: 4
+
+# Hardware
+device: cpu

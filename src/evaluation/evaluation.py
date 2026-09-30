@@ -2,8 +2,8 @@ import json
 import time
 from typing import Any, Dict, Optional
 
-from src.logger import Logger
-from src.runner import Runner
+from src.training.logger import Logger
+from src.training.runner import Runner
 
 
 def evaluate(

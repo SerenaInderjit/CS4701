@@ -1,7 +1,7 @@
 import json
 
-from src.evaluation import evaluate, format_evaluation, save_evaluation
-from src.policies import ConstantPolicy, RandomPolicy
+from src.evaluation.evaluation import evaluate, format_evaluation, save_evaluation
+from src.policies.baselines import ConstantPolicy, RandomPolicy
 from tests.fakes import FakeEnvironment
 
 

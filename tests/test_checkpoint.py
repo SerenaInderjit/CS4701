@@ -2,7 +2,7 @@ import os
 
 import torch
 
-from src.checkpoint import CheckpointManager, load_checkpoint, save_checkpoint
+from src.training.checkpoint import CheckpointManager, load_checkpoint, save_checkpoint
 
 
 def make_model():

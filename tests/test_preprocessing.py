@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.preprocessing import ObservationPreprocessor
+from src.environment.preprocessing import ObservationPreprocessor
 
 
 def raw_frame(value=None):

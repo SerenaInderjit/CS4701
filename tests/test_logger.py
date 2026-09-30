@@ -1,6 +1,6 @@
 import json
 
-from src.logger import Logger
+from src.training.logger import Logger
 
 
 def test_logger():

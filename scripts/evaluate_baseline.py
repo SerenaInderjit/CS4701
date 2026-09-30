@@ -5,9 +5,9 @@ Usage: ./run.sh eval  (or: python scripts/evaluate_baseline.py --episodes 5 --re
 import argparse
 import os
 
-from src.evaluation import evaluate, format_evaluation, save_evaluation
-from src.mario_environment import make_training_environment
-from src.policies import ConstantPolicy, RandomPolicy
+from src.environment.mario_environment import make_training_environment
+from src.evaluation.evaluation import evaluate, format_evaluation, save_evaluation
+from src.policies.baselines import ConstantPolicy, RandomPolicy
 
 
 def main():

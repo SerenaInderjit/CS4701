@@ -1,7 +1,7 @@
-from src.mario_environment import MarioEnvironment
-from src.runner import Runner
-from src.logger import Logger
-from src.policies import RandomPolicy
+from src.environment.mario_environment import MarioEnvironment
+from src.policies.baselines import RandomPolicy
+from src.training.logger import Logger
+from src.training.runner import Runner
 
 
 def test_runner():

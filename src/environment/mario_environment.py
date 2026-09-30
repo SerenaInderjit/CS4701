@@ -6,8 +6,8 @@ import gym_super_mario_bros
 from gym_super_mario_bros.actions import SIMPLE_MOVEMENT
 from nes_py.wrappers import JoypadSpace
 
-from src.preprocessing import ObservationPreprocessor
-from src.reward import RewardConfig, RewardShaper
+from src.environment.preprocessing import ObservationPreprocessor
+from src.environment.reward import RewardConfig, RewardShaper
 
 
 class MarioEnvironment:
