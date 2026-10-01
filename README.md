@@ -17,6 +17,13 @@ python -c "import gym_super_mario_bros; print('emulator ok')"
 The Gym / NumPy / step-API warnings printed on import are expected and harmless
 (`gym-super-mario-bros` requires the old Gym API, so we pin `gym==0.25.1`).
 
+On Ubuntu/WSL, the emulator may require the GLU library:
+
+```bash
+sudo apt update
+sudo apt install -y libglu1-mesa
+```
+
 ## Running
 
 All commands are run from the repo root. `run.sh` activates `.venv` and sets
@@ -25,9 +32,23 @@ All commands are run from the repo root. `run.sh` activates `.venv` and sets
 | Command | What it does |
 |---|---|
 | `bash run.sh test` | Run the full test suite |
-| `bash run.sh train` | Train PPO (see [Training](#training)) |
-| `bash run.sh eval --episodes 20 --timeout 2000` | Evaluate the baseline policies and save `results/baselines.json` |
-| `bash run.sh play` | Watch a random policy play with the game window open |
+| `bash run.sh train` | Train PPO |
+| `bash run.sh eval --episodes 20 --timeout 2000` | Evaluate the baseline policies |
+| `python scripts/analyze_results.py` | Calculate baseline statistics with pandas |
+| `python scripts/plot_results.py` | Generate plots from the evaluation results |
+| `bash run.sh play` | Watch a policy play with the game window open |
+
+The baseline evaluation currently supports three simple policies:
+
+- `random`: selects actions randomly
+- `always_right`: always selects action `1`
+- `zero`: always selects action `0`
+
+Run the baseline evaluation with:
+
+```bash
+bash run.sh eval --episodes 20 --timeout 2000
+```
 
 `play` doesn't forward arguments. To choose a policy or episode count, call the
 script directly:
@@ -125,8 +146,11 @@ src/
     evaluation.py          Shared evaluation for every agent
 scripts/
   train.py               Train PPO (./run.sh train)
-  play_mario.py          Watch a policy play (random/right/ppo --checkpoint ...)
+  play_mario.py          Watch a policy play (random/right/ppo 
+  --checkpoint ...)
   evaluate_baseline.py   Evaluate baselines with the shared harness
+  analyze_results.py     Calculate statistics with pandas
+  plot_results.py        Generate plots from saved results
 configs/
   ppo.yaml               Default training configuration
 tests/                   pytest suite (fakes.py is an emulator-free fake environment)
@@ -150,3 +174,4 @@ env.close()
 - Milestone 0 (environment setup, dummy policy, logging): done
 - Milestone 1 (preprocessing, reward, rollouts, checkpointing, evaluation): done
 - Milestone 2 (PPO): done — `src/algorithms/ppo.py` + `src/training/trainer.py`, run via `./run.sh train`
+

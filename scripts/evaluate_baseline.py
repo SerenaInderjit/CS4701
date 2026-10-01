@@ -22,6 +22,7 @@ def main():
     policies = {
         "random": RandomPolicy(num_actions=environment.num_actions, seed=0),
         "always_right": ConstantPolicy(action=1),
+        "zero": ConstantPolicy(action=0),
     }
 
     all_results = {}
@@ -40,7 +41,7 @@ def main():
         environment.close()
 
     os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
-    save_evaluation(args.output, all_results)
+    save_evaluation(args.output, all_results, raw=True)
     print(f"Saved results to {args.output}")
 
 
