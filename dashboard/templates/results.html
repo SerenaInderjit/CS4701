@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Results — RL Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav>
+        <h1>RL Training Dashboard</h1>
+        <a href="/">Overview</a>
+        <a href="/train">Train</a>
+        <a href="/play">Play</a>
+        <a href="/results">Results</a>
+    </nav>
+    <main>
+        <h2>Baseline Results</h2>
+
+        <div class="button-group">
+            <button id="refreshBtn">Regenerate Statistics &amp; Plots</button>
+        </div>
+        <div id="status">Loading...</div>
+
+        <h3>Statistics</h3>
+        <table id="statsTable">
+            <thead><tr id="statsHead"></tr></thead>
+            <tbody id="statsBody"></tbody>
+        </table>
+
+        <h3>Plots</h3>
+        <div class="plots" id="plotsGrid"></div>
+    </main>
+
+    <script>
+        async function loadStatistics() {
+            const res = await fetch('/api/results/statistics');
+            if (!res.ok) {
+                document.getElementById('statsBody').innerHTML =
+                    '<tr><td>No statistics found. Run eval, then regenerate.</td></tr>';
+                return;
+            }
+            const stats = await res.json();
+            if (!stats.length) return;
+            const columns = Object.keys(stats[0]);
+            document.getElementById('statsHead').innerHTML =
+                columns.map(c => `<th>${c}</th>`).join('');
+            document.getElementById('statsBody').innerHTML = stats.map(row =>
+                '<tr>' + columns.map(c => {
+                    const v = row[c];
+                    return `<td>${typeof v === 'number' ? v.toFixed(2) : v}</td>`;
+                }).join('') + '</tr>'
+            ).join('');
+        }
+
+        async function loadPlots() {
+            const res = await fetch('/api/results/plots');
+            const plots = await res.json();
+            document.getElementById('plotsGrid').innerHTML = plots.map(p =>
+                `<img src="/api/results/plot/${p}?t=${Date.now()}" alt="${p}">`
+            ).join('') || '<p>No plots yet.</p>';
+        }
+
+        async function refresh() {
+            const status = document.getElementById('status');
+            status.textContent = 'Regenerating...';
+            const res = await fetch('/api/results/refresh', { method: 'POST' });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                status.textContent = 'Done.';
+                await loadStatistics();
+                await loadPlots();
+            } else {
+                status.textContent = 'Error: ' + (data.detail || 'refresh failed');
+            }
+        }
+
+        document.getElementById('refreshBtn').addEventListener('click', refresh);
+        (async () => {
+            await loadStatistics();
+            await loadPlots();
+            document.getElementById('status').textContent = '';
+        })();
+    </script>
+</body>
+</html>

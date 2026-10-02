@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Play — RL Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav>
+        <h1>RL Training Dashboard</h1>
+        <a href="/">Overview</a>
+        <a href="/train">Train</a>
+        <a href="/play">Play</a>
+        <a href="/results">Results</a>
+    </nav>
+    <main>
+        <h2>Play</h2>
+
+        <div class="form-group">
+            <label>Checkpoint:</label>
+            <select id="checkpoint">
+                <option value="checkpoints/best.pt">best.pt</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Episodes:</label>
+            <input type="number" id="episodes" value="3" min="1" max="10">
+        </div>
+
+        <div class="form-group">
+            <label>FPS:</label>
+            <input type="number" id="fps" value="15" min="1" max="60">
+        </div>
+
+        <div class="button-group">
+            <button id="startBtn" onclick="startPlaying()">Start</button>
+            <button id="stopBtn" onclick="stopPlaying()" disabled>Stop</button>
+        </div>
+
+        <div id="status"></div>
+
+        <h3>Live View</h3>
+        <img id="gameFrame" src="" alt="Game frame will appear here" style="width: 512px; image-rendering: pixelated;">
+
+        <h3>Results</h3>
+        <pre id="results"></pre>
+    </main>
+
+    <script>
+        let playing = false;
+        let frameInterval = null;
+
+        async function startPlaying() {
+            const checkpoint = document.getElementById('checkpoint').value;
+            const episodes = document.getElementById('episodes').value;
+            const fps = document.getElementById('fps').value;
+
+            const res = await fetch('/api/play/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ checkpoint, episodes, fps }),
+            });
+            const data = await res.json();
+            document.getElementById('status').textContent = data.status;
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            playing = true;
+
+            // Start polling for frames
+            frameInterval = setInterval(fetchFrame, 100);
+        }
+
+        async function stopPlaying() {
+            await fetch('/api/play/stop', { method: 'POST' });
+            document.getElementById('status').textContent = 'Stopped';
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            playing = false;
+            clearInterval(frameInterval);
+        }
+
+        async function fetchFrame() {
+            const res = await fetch('/api/play/frame');
+            if (res.ok) {
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                document.getElementById('gameFrame').src = url;
+            }
+        }
+
+        async function checkStatus() {
+            const res = await fetch('/api/play/status');
+            const data = await res.json();
+            if (!data.running && playing) {
+                document.getElementById('status').textContent = 'Finished';
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+                playing = false;
+                clearInterval(frameInterval);
+                if (data.results) {
+                    document.getElementById('results').textContent = data.results;
+                }
+            }
+        }
+
+        setInterval(checkStatus, 1000);
+    </script>
+</body>
+</html>

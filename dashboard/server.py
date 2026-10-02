@@ -30,6 +30,8 @@ ROOT = Path(__file__).resolve().parent.parent
 RUNS_DIR = ROOT / "runs"
 CHECKPOINTS_DIR = ROOT / "checkpoints"
 CONFIGS_DIR = ROOT / "configs"
+RESULTS_DIR = ROOT / "results"
+PLOTS_DIR = ROOT / "plots"
 
 app = FastAPI(title="RL Training Dashboard")
 app.mount("/static", StaticFiles(directory=Path(__file__).resolve().parent / "static"), name="static")
@@ -74,6 +76,9 @@ def get_runs() -> List[Dict[str, Any]]:
         if episodes_file.exists():
             with open(episodes_file) as f:
                 run["episodes"] = json.load(f)
+            run["finished"] = True
+        else:
+            run["finished"] = False
         runs.append(run)
     return runs
 
@@ -104,6 +109,84 @@ async def train_page(request: Request):
             with open(f) as fh:
                 configs.append({"name": f.stem, "config": yaml.safe_load(fh)})
     return templates.TemplateResponse(request, "train.html", {"configs": configs})
+
+
+@app.get("/play")
+async def play_page(request: Request):
+    """Play page with live game view."""
+    checkpoints = []
+    if CHECKPOINTS_DIR.exists():
+        for f in CHECKPOINTS_DIR.glob("*.pt"):
+            checkpoints.append(f.name)
+    return templates.TemplateResponse(request, "play.html", {"checkpoints": checkpoints})
+
+
+@app.get("/results")
+async def results_page(request: Request):
+    """Results page: baseline statistics and plots."""
+    return templates.TemplateResponse(request, "results.html", {})
+
+
+@app.get("/api/results/statistics")
+async def api_results_statistics():
+    """API: baseline statistics computed by analyze_results.py."""
+    stats_file = RESULTS_DIR / "statistics.json"
+    if not stats_file.exists():
+        raise HTTPException(status_code=404, detail="statistics.json not found — run refresh")
+    with open(stats_file) as f:
+        return json.load(f)
+
+
+@app.get("/api/results/episodes")
+async def api_results_episodes():
+    """API: raw per-episode baseline results."""
+    raw_file = RESULTS_DIR / "baselines.json"
+    if not raw_file.exists():
+        raise HTTPException(status_code=404, detail="baselines.json not found — run eval first")
+    with open(raw_file) as f:
+        return json.load(f)
+
+
+@app.get("/api/results/plots")
+async def api_results_plots():
+    """API: list available plot files."""
+    if not PLOTS_DIR.exists():
+        return []
+    return sorted(f.name for f in PLOTS_DIR.glob("*.png"))
+
+
+@app.get("/api/results/plot/{name}")
+async def api_results_plot(name: str):
+    """API: serve a generated plot image."""
+    if "/" in name or ".." in name or not name.endswith(".png"):
+        raise HTTPException(status_code=400, detail="Invalid plot name")
+    plot_path = PLOTS_DIR / name
+    if not plot_path.exists():
+        raise HTTPException(status_code=404, detail="Plot not found")
+    return FileResponse(plot_path)
+
+
+@app.post("/api/results/refresh")
+async def api_results_refresh():
+    """API: re-run analyze_results.py and plot_results.py."""
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(ROOT)
+    output = []
+    for script in ("scripts/analyze_results.py", "scripts/plot_results.py"):
+        proc = subprocess.run(
+            [sys.executable, script],
+            cwd=ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        output.append(proc.stdout + proc.stderr)
+        if proc.returncode != 0:
+            clean = (proc.stderr or proc.stdout).strip().splitlines()
+            message = clean[-1] if clean else "unknown error"
+            raise HTTPException(status_code=400, detail=f"{script}: {message}")
+    return {"status": "ok", "output": "\n".join(output)}
 
 
 @app.get("/api/runs")
@@ -220,6 +303,77 @@ async def api_configs():
             with open(f) as fh:
                 configs.append({"name": f.stem, "config": yaml.safe_load(fh)})
     return configs
+
+
+# Play state
+_play_process: Optional[subprocess.Popen] = None
+_play_results: str = ""
+_play_frame_dir = Path(__file__).resolve().parent / "frames"
+
+
+@app.post("/api/play/start")
+async def api_play_start(config: Dict[str, Any]):
+    """API: start playing with a checkpoint."""
+    global _play_process, _play_results
+    if _play_process is not None and _play_process.poll() is None:
+        raise HTTPException(status_code=400, detail="Already playing")
+
+    checkpoint = config.get("checkpoint", "checkpoints/best.pt")
+    episodes = config.get("episodes", 3)
+    fps = config.get("fps", 15)
+
+    _play_frame_dir.mkdir(exist_ok=True)
+    # Clear old frames
+    for f in _play_frame_dir.glob("*.png"):
+        f.unlink()
+
+    _play_results = ""
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(ROOT)
+    _play_process = subprocess.Popen(
+        [sys.executable, "scripts/play_mario.py", "--policy", "ppo",
+         "--checkpoint", checkpoint, "--episodes", str(episodes),
+         "--device", "cpu", "--save-frames", str(_play_frame_dir)],
+        cwd=ROOT,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    return {"status": "started", "pid": _play_process.pid}
+
+
+@app.post("/api/play/stop")
+async def api_play_stop():
+    """API: stop playing."""
+    global _play_process
+    if _play_process is None or _play_process.poll() is not None:
+        raise HTTPException(status_code=400, detail="Not playing")
+    _play_process.send_signal(signal.SIGTERM)
+    _play_process.wait(timeout=10)
+    _play_process = None
+    return {"status": "stopped"}
+
+
+@app.get("/api/play/status")
+async def api_play_status():
+    """API: get play status."""
+    if _play_process is None:
+        return {"running": False, "results": _play_results}
+    running = _play_process.poll() is None
+    if not running and _play_process.stdout is not None:
+        _play_results = _play_process.stdout.read().decode()
+    return {"running": running, "results": _play_results}
+
+
+@app.get("/api/play/frame")
+async def api_play_frame():
+    """API: get the latest game frame."""
+    if not _play_frame_dir.exists():
+        raise HTTPException(status_code=404, detail="No frames yet")
+    frames = sorted(_play_frame_dir.glob("*.png"))
+    if not frames:
+        raise HTTPException(status_code=404, detail="No frames yet")
+    return FileResponse(frames[-1])
 
 
 if __name__ == "__main__":

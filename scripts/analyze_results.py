@@ -1,10 +1,13 @@
 import json
+import sys
 
 import pandas as pd
 
 
 INPUT_FILE = "results/baselines.json"
 OUTPUT_FILE = "results/statistics.json"
+
+REQUIRED_COLUMNS = {"policy", "episode", "total_reward", "max_x_pos", "flag_get", "length"}
 
 
 def load_results(path):
@@ -30,7 +33,21 @@ def calculate_statistics(df):
 
 
 def main():
-    df = load_results(INPUT_FILE)
+    try:
+        df = load_results(INPUT_FILE)
+    except FileNotFoundError:
+        sys.exit(f"Error: {INPUT_FILE} not found. Run `bash run.sh eval` first.")
+    except json.JSONDecodeError:
+        sys.exit(f"Error: {INPUT_FILE} is not valid JSON.")
+
+    if df.empty:
+        sys.exit(f"Error: {INPUT_FILE} contains no episodes.")
+    missing = REQUIRED_COLUMNS - set(df.columns)
+    if missing:
+        sys.exit(
+            f"Error: {INPUT_FILE} is missing columns {sorted(missing)}. "
+            "It may be in the old format — re-run `bash run.sh eval` to regenerate it."
+        )
 
     statistics = calculate_statistics(df)
 

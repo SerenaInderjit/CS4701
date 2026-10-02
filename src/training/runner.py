@@ -6,11 +6,12 @@ class Runner:
     and/or `value` (used by PPO). Extras are stored in the rollout buffer.
     """
 
-    def __init__(self, environment, policy, logger, render=False):
+    def __init__(self, environment, policy, logger, render=False, on_step=None):
         self.environment = environment
         self.policy = policy
         self.logger = logger
         self.render = render
+        self.on_step = on_step  # optional callback after each step
         self._result = None  # environment state carried across collect_rollout calls
 
     @staticmethod
@@ -38,6 +39,8 @@ class Runner:
                 reward=result["reward"],
                 info=result["info"],
             )
+            if self.on_step is not None:
+                self.on_step()
 
             steps += 1
 

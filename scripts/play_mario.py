@@ -9,8 +9,12 @@ one the baselines use.
 
 --fps controls playback speed (agent steps per second). Default 15 is
 approximately real-time for frame_skip=4 on the NES (60 FPS / 4).
+
+--save-frames saves each rendered frame as a PNG to the given directory
+(used by the dashboard live view).
 """
 import argparse
+import os
 import time
 
 from src.algorithms.cnn import ConvolutionalNeuralNetwork
@@ -40,6 +44,8 @@ def main():
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--fps", type=int, default=15,
                         help="agent steps per second (15 ≈ real-time for frame_skip=4)")
+    parser.add_argument("--save-frames", type=str, default=None,
+                        help="save rendered frames as PNGs to this directory")
     args = parser.parse_args()
 
     if args.policy == "ppo" and args.checkpoint is None:
@@ -53,9 +59,31 @@ def main():
 
     policy = make_policy(args.policy, environment.num_actions, args.checkpoint, args.device)
 
+    frame_dir = None
+    if args.save_frames:
+        os.makedirs(args.save_frames, exist_ok=True)
+        frame_dir = args.save_frames
+
     logger = Logger()
-    runner = Runner(environment, policy, logger, render=True)
     step_delay = 1.0 / args.fps if args.fps > 0 else 0.0
+
+    frame_count = 0
+
+    def save_frame():
+        nonlocal frame_count
+        if frame_dir is None:
+            return
+        try:
+            frame = environment.env.render(mode="rgb_array")
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+            plt.imsave(os.path.join(frame_dir, f"frame_{frame_count:06d}.png"), frame)
+            frame_count += 1
+        except Exception:
+            pass
+
+    runner = Runner(environment, policy, logger, render=True, on_step=save_frame)
 
     try:
         for _ in range(args.episodes):
