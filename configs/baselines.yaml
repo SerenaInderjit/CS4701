@@ -1,0 +1,4 @@
+policies:
+  - random
+  - always_right
+  - zero

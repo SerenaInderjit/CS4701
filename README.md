@@ -64,7 +64,7 @@ emulator allows, so it plays much faster than real time.
 To watch a trained agent (see [Training](#training)):
 
 ```bash
-PYTHONPATH="$PWD" python scripts/play_mario.py --policy ppo --checkpoint checkpoints/best.pt --episodes 3
+PYTHONPATH="$PWD" python scripts/play_mario.py --policy ppo --checkpoint data/checkpoints/<run_id>/best.pt --episodes 3
 ```
 
 ## Training
@@ -81,13 +81,15 @@ episode boundaries, computes GAE advantages, and runs `epochs` minibatch PPO
 updates. Progress (logged per update) includes policy/value loss and episode
 statistics over the last 10 episodes.
 
-Every run is self-contained in `runs/ppo_<timestamp>/` (gitignored):
+Every run is self-contained in `data/runs/ppo_<timestamp>/` (gitignored):
 `config.yaml` (resolved config), `run.json` (git commit, seed, start time),
 `metrics.jsonl` (one line per update) and `episodes.json`.
 
-Checkpoints are written to `--checkpoint-dir` every `--checkpoint-every` updates
-(and at the end): `checkpoint_<step>.pt` keeps the last 3, `best.pt` tracks
-the policy with the best mean distance. Checkpoints store the full agent —
+Checkpoints are written to `data/checkpoints/<run_id>/` every `--checkpoint-every`
+updates (and at the end). While training: `latest.pt` (most recent, for `--resume`),
+`best.pt` (best mean distance so far), and periodic `checkpoint_<step>.pt` capped at
+the top 3 by score. When training finishes, `latest.pt` is deleted and only `best.pt`
+plus the top-3 periodic checkpoints remain. Checkpoints store the full agent —
 policy and value models plus both optimizers — so `--resume` continues exactly
 where the run left off.
 
@@ -151,6 +153,8 @@ scripts/
   evaluate_baseline.py   Evaluate baselines with the shared harness
   analyze_results.py     Calculate statistics with pandas
   plot_results.py        Generate plots from saved results
+  push_weights.py        Upload checkpoints to Hugging Face Hub
+  pull_weights.py        Download checkpoints from Hugging Face Hub
 configs/
   ppo.yaml               Default training configuration
 tests/                   pytest suite (fakes.py is an emulator-free fake environment)
@@ -174,4 +178,16 @@ env.close()
 - Milestone 0 (environment setup, dummy policy, logging): done
 - Milestone 1 (preprocessing, reward, rollouts, checkpointing, evaluation): done
 - Milestone 2 (PPO): done — `src/algorithms/ppo.py` + `src/training/trainer.py`, run via `./run.sh train`
+
+## Sharing model weights
+
+Checkpoints live in `data/checkpoints/` (gitignored, `*.pt`). To share them,
+publish to Hugging Face Hub:
+
+```bash
+python scripts/push_weights.py --repo-id <user>/mario-ppo --run-id <run_id>
+python scripts/pull_weights.py --repo-id <user>/mario-ppo --run-id <run_id>
+```
+
+Hub layout: `<run_id>/config.yaml`, `<run_id>/best.pt`, `<run_id>/checkpoint_*.pt`.
 

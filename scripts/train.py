@@ -15,6 +15,7 @@ from datetime import datetime
 
 from src.algorithms.ppo import PPO
 from src.environment.mario_environment import make_training_environment
+from src.paths import RUNS_DIR
 from src.training.config import load_config, save_config
 from src.training.device import resolve_device
 from src.training.reproducibility import git_commit_hash, seed_everything
@@ -44,7 +45,7 @@ def main():
     parser.add_argument("--resume", action="store_true",
                         help="continue from the latest checkpoint in --checkpoint-dir")
     parser.add_argument("--run-dir", type=str, default=None,
-                        help="where to write config/metrics (default runs/ppo_<timestamp>)")
+                        help="where to write config/metrics (default data/runs/ppo_<timestamp>)")
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -56,7 +57,15 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
     seed_everything(config["seed"])
 
-    run_dir = args.run_dir or os.path.join("runs", f"ppo_{datetime.now():%Y%m%d_%H%M%S}")
+    run_dir = args.run_dir or os.path.join(RUNS_DIR, f"ppo_{datetime.now():%Y%m%d_%H%M%S}")
+    run_name = os.path.basename(run_dir)
+    checkpoint_root = config.get("checkpoint_dir", "data/checkpoints")
+    checkpoint_dir = (
+        os.path.join(checkpoint_root, run_name)
+        if checkpoint_root.rstrip("/").endswith("checkpoints")
+        else checkpoint_root
+    )
+    config["checkpoint_dir"] = checkpoint_dir
     os.makedirs(run_dir, exist_ok=True)
     save_config(config, os.path.join(run_dir, "config.yaml"))
     with open(os.path.join(run_dir, "run.json"), "w") as f:
@@ -96,7 +105,7 @@ def main():
         env=env,
         agent=agent,
         buffer=buffer,
-        checkpoint_dir=config["checkpoint_dir"],
+        checkpoint_dir=checkpoint_dir,
         checkpoint_every=config["checkpoint_every"],
         run_dir=run_dir,
     )

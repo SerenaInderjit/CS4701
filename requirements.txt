@@ -9,4 +9,5 @@ fastapi
 uvicorn
 jinja2
 matplotlib
-pandas
+pandas<2.3
+huggingface_hub

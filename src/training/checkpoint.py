@@ -4,6 +4,8 @@ from typing import Any, Dict, Optional
 
 import torch
 
+from src.paths import CHECKPOINTS_DIR
+
 
 def save_checkpoint(
     path: str,
@@ -52,18 +54,23 @@ def load_checkpoint(
 
 
 class CheckpointManager:
-    """Keeps the last `keep_last` periodic checkpoints plus a `best.pt`.
+    """Per-run checkpoint storage.
 
-    Periodic files are named checkpoint_<step>.pt. If `score` is passed to
-    `save` (e.g. mean distance from evaluation) and it beats the best so far,
-    the checkpoint is also written to best.pt.
+    During training two live artifacts plus a bounded top-k candidate set:
+      - latest.pt           : most recent checkpoint (for --resume)
+      - best.pt             : highest-scoring checkpoint so far
+      - checkpoint_<step>.pt: at most `keep_top` top-scoring periodic saves
+
+    `finalize()` (called when training finishes) deletes latest.pt and
+    prunes the periodic set to the top `keep_top` by score, leaving only
+    the best model(s) on disk.
     """
 
     _PATTERN = re.compile(r"^checkpoint_(\d+)\.pt$")
 
-    def __init__(self, directory: str = "checkpoints", keep_last: int = 3):
+    def __init__(self, directory: str = CHECKPOINTS_DIR, keep_top: int = 3):
         self.directory = directory
-        self.keep_last = keep_last
+        self.keep_top = keep_top
         self.best_score: Optional[float] = None
         os.makedirs(directory, exist_ok=True)
 
@@ -76,6 +83,10 @@ class CheckpointManager:
     def best_path(self) -> str:
         return os.path.join(self.directory, "best.pt")
 
+    @property
+    def latest_checkpoint_path(self) -> str:
+        return os.path.join(self.directory, "latest.pt")
+
     def _periodic_paths(self):
         found = []
         for name in os.listdir(self.directory):
@@ -84,7 +95,16 @@ class CheckpointManager:
                 found.append((int(match.group(1)), os.path.join(self.directory, name)))
         return [path for _, path in sorted(found)]
 
+    def _score_of(self, path: str) -> Optional[float]:
+        try:
+            payload = torch.load(path, map_location="cpu", weights_only=False)
+            return payload.get("extra", {}).get("score")
+        except Exception:
+            return None
+
     def latest_path(self) -> Optional[str]:
+        if os.path.exists(self.latest_checkpoint_path):
+            return self.latest_checkpoint_path
         paths = self._periodic_paths()
         return paths[-1] if paths else None
 
@@ -103,14 +123,41 @@ class CheckpointManager:
             path, model, optimizer, step=step, metrics=metrics, extra=extra,
             additional_state=additional_state,
         )
+        # Keep the resume target valid: latest.pt mirrors this save.
+        save_checkpoint(
+            self.latest_checkpoint_path, model, optimizer, step=step,
+            metrics=metrics, extra=extra, additional_state=additional_state,
+        )
 
         if score is not None and (self.best_score is None or score > self.best_score):
             self.best_score = score
             save_checkpoint(self.best_path, model, optimizer, step=step, metrics=metrics, extra=extra)
 
-        for old_path in self._periodic_paths()[:-self.keep_last]:
+        # Bound periodic saves to the top `keep_top` by score (recency wins ties).
+        scored = [
+            (self._score_of(p) if self._score_of(p) is not None else float("-inf"), self._step_of(p), p)
+            for p in self._periodic_paths()
+        ]
+        scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
+        for _, _, old_path in scored[self.keep_top:]:
             os.remove(old_path)
         return path
+
+    def _step_of(self, path: str) -> int:
+        match = self._PATTERN.match(os.path.basename(path))
+        return int(match.group(1)) if match else 0
+
+    def finalize(self, keep_top: Optional[int] = None) -> None:
+        """Training finished: drop the incremental latest.pt and keep only
+        the top `keep_top` scored periodic checkpoints (default: keep_top)."""
+        if os.path.exists(self.latest_checkpoint_path):
+            os.remove(self.latest_checkpoint_path)
+        keep = self.keep_top if keep_top is None else keep_top
+        scored = [(self._score_of(p) if self._score_of(p) is not None else float("-inf"), self._step_of(p), p)
+                  for p in self._periodic_paths()]
+        scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
+        for _, _, old_path in scored[keep:]:
+            os.remove(old_path)
 
     def load_latest(self, model, optimizer=None, map_location="cpu") -> Optional[Dict[str, Any]]:
         path = self.latest_path()

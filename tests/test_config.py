@@ -11,7 +11,7 @@ def test_load_default_config():
     assert config["updates"] == 1000
     assert config["rollout_size"] == 2048
     assert config["epsilon"] == 0.2
-    assert config["checkpoint_dir"] == "checkpoints"
+    assert config["checkpoint_dir"] == "data/checkpoints"
 
 
 def test_save_and_load_round_trip(tmp_path):

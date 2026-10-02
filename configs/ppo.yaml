@@ -7,7 +7,7 @@ updates: 1000            # number of PPO updates (one rollout + update each)
 rollout_size: 2048       # transitions collected per update
 seed: 0                  # torch / numpy / random seed
 checkpoint_every: 10     # save a checkpoint every N updates (and at the end)
-checkpoint_dir: checkpoints
+checkpoint_dir: data/checkpoints
 
 # Agent
 learning_rate: 0.0003

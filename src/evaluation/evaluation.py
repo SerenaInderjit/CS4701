@@ -5,10 +5,6 @@ from typing import Any, Dict, Optional
 from src.training.logger import Logger, _json_default
 from src.training.runner import Runner
 
-def _json_default(value):
-    if hasattr(value, "item"):
-        return value.item()
-    return str(value)
 
 def evaluate(
     environment,

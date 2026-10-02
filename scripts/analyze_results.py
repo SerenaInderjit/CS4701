@@ -1,11 +1,12 @@
+import argparse
 import json
 import sys
 
 import pandas as pd
 
 
-INPUT_FILE = "results/baselines.json"
-OUTPUT_FILE = "results/statistics.json"
+INPUT_FILE = "data/results/baselines.json"
+OUTPUT_FILE = "data/results/statistics.json"
 
 REQUIRED_COLUMNS = {"policy", "episode", "total_reward", "max_x_pos", "flag_get", "length"}
 
@@ -33,19 +34,26 @@ def calculate_statistics(df):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input", default=INPUT_FILE)
+    parser.add_argument("--output", default=OUTPUT_FILE)
+    args = parser.parse_args()
+
+    input_file, output_file = args.input, args.output
+
     try:
-        df = load_results(INPUT_FILE)
+        df = load_results(input_file)
     except FileNotFoundError:
-        sys.exit(f"Error: {INPUT_FILE} not found. Run `bash run.sh eval` first.")
+        sys.exit(f"Error: {input_file} not found. Run `bash run.sh eval` first.")
     except json.JSONDecodeError:
-        sys.exit(f"Error: {INPUT_FILE} is not valid JSON.")
+        sys.exit(f"Error: {input_file} is not valid JSON.")
 
     if df.empty:
-        sys.exit(f"Error: {INPUT_FILE} contains no episodes.")
+        sys.exit(f"Error: {input_file} contains no episodes.")
     missing = REQUIRED_COLUMNS - set(df.columns)
     if missing:
         sys.exit(
-            f"Error: {INPUT_FILE} is missing columns {sorted(missing)}. "
+            f"Error: {input_file} is missing columns {sorted(missing)}. "
             "It may be in the old format — re-run `bash run.sh eval` to regenerate it."
         )
 
@@ -58,12 +66,12 @@ def main():
     print(statistics.to_string(index=False))
 
     statistics.to_json(
-        OUTPUT_FILE,
+        output_file,
         orient="records",
         indent=2,
     )
 
-    print(f"\nSaved statistics to {OUTPUT_FILE}")
+    print(f"\nSaved statistics to {output_file}")
 
 
 if __name__ == "__main__":

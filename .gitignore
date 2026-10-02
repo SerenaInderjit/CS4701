@@ -25,16 +25,20 @@ env/
 logs/
 *.log
 
-# RL outputs
-checkpoints/
-runs/
-models/
+# Legacy output dirs (now under data/)
+/checkpoints/
+/runs/
+/results/
+/plots/
+/models/
 
 # Dashboard generated plots
 dashboard/plots/
 
-# Data
-data/
+# Data (file-system "db"). Generated dirs are ignored; plots are tracked.
+data/runs/
+data/checkpoints/
+data/results/
 *.npz
 *.npy
 *.pt

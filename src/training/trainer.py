@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 from typing import Optional
 
+from src.paths import CHECKPOINTS_DIR
 from src.training.checkpoint import CheckpointManager
 from src.training.logger import Logger
 from src.training.runner import Runner
@@ -24,7 +25,7 @@ class Trainer:
         env,
         agent,
         buffer,
-        checkpoint_dir: str = "checkpoints",
+        checkpoint_dir: str = CHECKPOINTS_DIR,
         logger: Optional[Logger] = None,
         checkpoint_every: int = 10,
         run_dir: Optional[str] = None,
@@ -52,6 +53,7 @@ class Trainer:
         if self.run_dir is not None:
             self.logger.save_episodes(os.path.join(self.run_dir, "episodes.json"))
         self.logger.info("Training finished")
+        self.checkpoints.finalize()
 
     def resume(self) -> int:
         """Restore the agent from the latest checkpoint. Returns the last completed update."""

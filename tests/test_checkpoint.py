@@ -27,20 +27,37 @@ def test_save_and_load_restores_weights_and_optimizer(tmp_path):
     assert not os.path.exists(path + ".tmp")
 
 
-def test_manager_keeps_only_last_n(tmp_path):
+def test_manager_keeps_only_top_k_by_score(tmp_path):
     model = make_model()
-    manager = CheckpointManager(str(tmp_path), keep_last=2)
-    for step in (100, 200, 300):
-        manager.save(model, None, step)
+    manager = CheckpointManager(str(tmp_path), keep_top=2)
+    for step, score in ((100, 10.0), (200, 30.0), (300, 20.0)):
+        manager.save(model, None, step, score=score)
 
     names = sorted(os.listdir(tmp_path))
-    assert names == ["checkpoint_000000200.pt", "checkpoint_000000300.pt"]
-    assert manager.latest_path().endswith("checkpoint_000000300.pt")
+    assert "latest.pt" in names
+    periodic = sorted(n for n in names if n.startswith("checkpoint_"))
+    # Step 100 (lowest score) was pruned; top-2 by score remain.
+    assert periodic == ["checkpoint_000000200.pt", "checkpoint_000000300.pt"]
+    assert manager.latest_path().endswith("latest.pt")
+
+
+def test_finalize_keeps_best_and_topk_only(tmp_path):
+    model = make_model()
+    manager = CheckpointManager(str(tmp_path), keep_top=2)
+    for step, score in ((100, 10.0), (200, 30.0), (300, 20.0)):
+        manager.save(model, None, step, score=score)
+
+    manager.finalize()
+
+    names = sorted(os.listdir(tmp_path))
+    assert "latest.pt" not in names
+    assert {"best.pt", "checkpoint_000000200.pt", "checkpoint_000000300.pt"} <= set(names)
+    assert "checkpoint_000000100.pt" not in names
 
 
 def test_manager_tracks_best_score(tmp_path):
     model = make_model()
-    manager = CheckpointManager(str(tmp_path), keep_last=1)
+    manager = CheckpointManager(str(tmp_path), keep_top=1)
     manager.save(model, None, 100, score=10.0)
     with torch.no_grad():
         model.weight.fill_(5.0)

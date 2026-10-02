@@ -27,11 +27,13 @@ from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 
 ROOT = Path(__file__).resolve().parent.parent
-RUNS_DIR = ROOT / "runs"
-CHECKPOINTS_DIR = ROOT / "checkpoints"
+from src.paths import RUNS_DIR as _RUNS_DIR, CHECKPOINTS_DIR as _CKPT_DIR, RESULTS_DIR as _RESULTS_DIR, PLOTS_DIR as _PLOTS_DIR
+
+RUNS_DIR = Path(_RUNS_DIR)
+CHECKPOINTS_DIR = Path(_CKPT_DIR)
 CONFIGS_DIR = ROOT / "configs"
-RESULTS_DIR = ROOT / "results"
-PLOTS_DIR = ROOT / "plots"
+RESULTS_DIR = Path(_RESULTS_DIR)
+PLOTS_DIR = Path(_PLOTS_DIR)
 
 app = FastAPI(title="RL Training Dashboard")
 app.mount("/static", StaticFiles(directory=Path(__file__).resolve().parent / "static"), name="static")
@@ -243,8 +245,8 @@ async def api_plot(run_id: str, metric: str):
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
 
-    plot_dir = Path(__file__).resolve().parent / "plots"
-    plot_dir.mkdir(exist_ok=True)
+    plot_dir = PLOTS_DIR / "runs"
+    plot_dir.mkdir(parents=True, exist_ok=True)
     plot_path = plot_dir / f"{run_id}_{metric}.png"
     fig.savefig(plot_path, dpi=100)
     plt.close(fig)
