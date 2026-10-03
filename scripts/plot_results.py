@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import sys
+from datetime import datetime
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -9,7 +10,7 @@ import pandas as pd
 
 RAW_FILE = "data/results/baselines.json"
 STATS_FILE = "data/results/statistics.json"
-PLOTS_DIR = "data/plots"
+PLOTS_DIR = None  # defaults to data/plots/baseline_<timestamp> in main()
 
 EPISODE_COLUMNS = {"policy", "episode", "max_x_pos"}
 STATS_COLUMNS = {"policy", "mean_reward", "mean_distance", "mean_episode_length", "completion_rate"}
@@ -50,59 +51,32 @@ def load_data(raw_file=RAW_FILE, stats_file=STATS_FILE):
     return episodes, statistics
 
 
-def plot_summary(statistics, plots_dir=PLOTS_DIR):
+def _bar_with_labels(statistics, y, ylabel, title, out, fmt):
+    ax = statistics.plot(x="policy", y=y, kind="bar", legend=False)
+    plt.ylabel(ylabel)
+    plt.title(title)
+    for rect, val in zip(ax.patches, statistics[y]):
+        ax.annotate(fmt.format(val), (rect.get_x() + rect.get_width() / 2, rect.get_height()),
+                    ha="center", va="bottom")
+    plt.tight_layout()
+    plt.savefig(out)
+    plt.close()
+
+
+def plot_summary(statistics, plots_dir):
     os.makedirs(plots_dir, exist_ok=True)
 
-    statistics.plot(
-        x="policy",
-        y="mean_reward",
-        kind="bar",
-        legend=False,
-    )
-    plt.ylabel("Mean Reward")
-    plt.title("Mean Reward by Policy")
-    plt.tight_layout()
-    plt.savefig(f"{plots_dir}/mean_reward.png")
-    plt.close()
-
-    statistics.plot(
-        x="policy",
-        y="mean_distance",
-        kind="bar",
-        legend=False,
-    )
-    plt.ylabel("Mean Distance")
-    plt.title("Mean Distance by Policy")
-    plt.tight_layout()
-    plt.savefig(f"{plots_dir}/mean_distance.png")
-    plt.close()
-
-    statistics.plot(
-        x="policy",
-        y="mean_episode_length",
-        kind="bar",
-        legend=False,
-    )
-    plt.ylabel("Mean Episode Length")
-    plt.title("Mean Episode Length by Policy")
-    plt.tight_layout()
-    plt.savefig(f"{plots_dir}/mean_episode_length.png")
-    plt.close()
-
-    statistics.plot(
-        x="policy",
-        y="completion_rate",
-        kind="bar",
-        legend=False,
-    )
-    plt.ylabel("Completion Rate")
-    plt.title("Completion Rate by Policy")
-    plt.tight_layout()
-    plt.savefig(f"{plots_dir}/completion_rate.png")
-    plt.close()
+    _bar_with_labels(statistics, "mean_reward", "Mean Reward", "Mean Reward by Policy",
+                     f"{plots_dir}/mean_reward.png", "{:.1f}")
+    _bar_with_labels(statistics, "mean_distance", "Mean Distance", "Mean Distance by Policy",
+                     f"{plots_dir}/mean_distance.png", "{:.1f}")
+    _bar_with_labels(statistics, "mean_episode_length", "Mean Episode Length", "Mean Episode Length by Policy",
+                     f"{plots_dir}/mean_episode_length.png", "{:.1f}")
+    _bar_with_labels(statistics, "completion_rate", "Completion Rate", "Completion Rate by Policy",
+                     f"{plots_dir}/completion_rate.png", "{:.0%}")
 
 
-def plot_distance_by_episode(episodes, plots_dir=PLOTS_DIR):
+def plot_distance_by_episode(episodes, plots_dir):
     for policy in episodes["policy"].unique():
         policy_data = episodes[episodes["policy"] == policy]
 
@@ -125,10 +99,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--raw", default=RAW_FILE)
     parser.add_argument("--stats", default=STATS_FILE)
-    parser.add_argument("--plots-dir", default=PLOTS_DIR)
+    parser.add_argument("--plots-dir", default=None)
     args = parser.parse_args()
 
-    raw_file, stats_file, plots_dir = args.raw, args.stats, args.plots_dir
+    raw_file, stats_file = args.raw, args.stats
+    plots_dir = args.plots_dir or os.path.join(
+        "data", "plots", f"baseline_{datetime.now():%Y%m%d_%H%M%S}"
+    )
 
     os.makedirs(plots_dir, exist_ok=True)
 

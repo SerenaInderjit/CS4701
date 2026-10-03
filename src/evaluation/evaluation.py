@@ -61,9 +61,9 @@ def format_evaluation(name: str, results: Dict[str, Any]) -> str:
     )
 
 
-def save_evaluation(path: str, all_results: Dict[str, Dict[str, Any]], raw=False) -> None:
+def save_evaluation(path: str, all_results: Dict[str, Dict[str, Any]], raw=False, keep=None) -> None:
     if raw:
-        all_episodes = []
+        all_episodes = list(keep or [])
 
         for policy_name, policy_results in all_results.items():
             for episode in policy_results["episodes"]:

@@ -1,4 +1,6 @@
+# Baseline policies to evaluate. Add more as needed:
+#   - random        (random actions)
+#   - always_right  (always action 1)
+#   - zero          (always action 0)
 policies:
   - random
-  - always_right
-  - zero

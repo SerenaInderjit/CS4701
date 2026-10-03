@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Grid Search — RL Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav>
+        <h1>RL Training Dashboard</h1>
+        <a href="/">Overview</a>
+        <a href="/train">Train</a>
+        <a href="/gridsearch">Grid Search</a>
+        <a href="/play">Play</a>
+        <a href="/results">Results</a>
+    </nav>
+    <main>
+        <h2>Grid Search</h2>
+        <div class="form-group">
+            <label>Base config:</label>
+            <select id="baseConfig">
+                <option value="configs/ppo.yaml">configs/ppo.yaml</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Grid (JSON: param -> list of values):</label>
+            <textarea id="grid" rows="5">{"learning_rate": [0.0003, 0.001], "epsilon": [0.1, 0.2]}</textarea>
+        </div>
+        <div class="form-group">
+            <label>Updates per run:</label>
+            <input type="number" id="updates" value="50" min="1">
+        </div>
+        <div class="form-group">
+            <label>Parallel processes (N at a time):</label>
+            <input type="number" id="parallel" value="4" min="1" max="8">
+        </div>
+        <div class="button-group">
+            <button id="startBtn">Start Grid Search</button>
+        </div>
+        <div id="status"></div>
+        <h3>Results</h3>
+        <table>
+            <thead><tr><th>Run</th><th>Combo</th><th>Status</th></tr></thead>
+            <tbody id="resultsBody"></tbody>
+        </table>
+    </main>
+    <script>
+        document.getElementById('startBtn').addEventListener('click', async () => {
+            const grid = JSON.parse(document.getElementById('grid').value);
+            const res = await fetch('/api/gridsearch', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    grid,
+                    updates: parseInt(document.getElementById('updates').value),
+                    parallel: parseInt(document.getElementById('parallel').value),
+                    config: document.getElementById('baseConfig').value,
+                }),
+            });
+            const data = await res.json();
+            document.getElementById('status').textContent = res.ok ? 'Started' : (data.detail || 'Error');
+        });
+
+        async function poll() {
+            const res = await fetch('/api/gridsearch/status');
+            const jobs = await res.json();
+            document.getElementById('resultsBody').innerHTML = jobs.map(j =>
+                `<tr><td>${j.run_id}</td><td>${JSON.stringify(j.combo)}</td><td>${j.returncode === 0 ? 'ok' : 'FAILED (' + j.returncode + ')'}</td></tr>`
+            ).join('');
+        }
+        poll();
+        setInterval(poll, 5000);
+    </script>
+</body>
+</html>

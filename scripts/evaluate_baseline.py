@@ -3,6 +3,7 @@
 Usage: ./run.sh eval  (or: python scripts/evaluate_baseline.py --episodes 5 --render)
 """
 import argparse
+import json
 import os
 
 import yaml
@@ -56,7 +57,17 @@ def main():
         environment.close()
 
     os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
-    save_evaluation(args.output, all_results, raw=True)
+    merge_existing = []
+    if os.path.exists(args.output):
+        try:
+            with open(args.output) as f:
+                existing = json.load(f)
+            if isinstance(existing, list):
+                reran = set(all_results)
+                merge_existing = [e for e in existing if e.get("policy") not in reran]
+        except (json.JSONDecodeError, OSError):
+            merge_existing = []
+    save_evaluation(args.output, all_results, raw=True, keep=merge_existing)
     print(f"Saved results to {args.output}")
 
 

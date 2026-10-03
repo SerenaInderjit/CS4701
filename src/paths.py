@@ -13,7 +13,9 @@ Layout:
             plots/              run metric plots
         results/                baseline evaluation artifacts (baselines.json,
                                 statistics.json)
-        plots/                  baseline comparison plots (tracked in git)
+        plots/                  baseline comparison plots, grouped per eval run:
+                                plots/baseline_<timestamp>/ (tracked in git)
+                                plots/compare/ (policy-vs-policy charts)
 """
 import os
 

@@ -58,7 +58,10 @@ def main():
 
     run_dir = args.run_dir or os.path.join(RUNS_DIR, f"ppo_{datetime.now():%Y%m%d_%H%M%S}")
     run_name = os.path.basename(run_dir)
-    checkpoint_dir = os.path.join(run_dir, config.get("checkpoint_dir", "checkpoints"))
+    checkpoint_dir = (
+        args.checkpoint_dir
+        or os.path.join(run_dir, config.get("checkpoint_dir", "checkpoints"))
+    )
     config["checkpoint_dir"] = checkpoint_dir
     os.makedirs(run_dir, exist_ok=True)
     save_config(config, os.path.join(run_dir, "config.yaml"))

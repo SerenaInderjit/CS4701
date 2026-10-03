@@ -112,6 +112,12 @@ async def train_page(request: Request):
     return templates.TemplateResponse(request, "train.html", {"configs": configs})
 
 
+@app.get("/gridsearch")
+async def gridsearch_page(request: Request):
+    """Grid search page: launch param sweeps."""
+    return templates.TemplateResponse(request, "gridsearch.html", {})
+
+
 @app.get("/play")
 async def play_page(request: Request):
     """Play page with live game view."""
@@ -156,15 +162,23 @@ async def api_results_plots():
     """API: list available plot files."""
     if not PLOTS_DIR.exists():
         return []
-    return sorted(f.name for f in PLOTS_DIR.glob("*.png"))
+    return sorted(
+        str(f.relative_to(PLOTS_DIR))
+        for f in PLOTS_DIR.rglob("*.png")
+        if "compare" not in f.relative_to(PLOTS_DIR).parts
+    )
 
 
-@app.get("/api/results/plot/{name}")
+@app.get("/api/results/plot/{name:path}")
 async def api_results_plot(name: str):
     """API: serve a generated plot image."""
-    if "/" in name or ".." in name or not name.endswith(".png"):
+    if ".." in name:
         raise HTTPException(status_code=400, detail="Invalid plot name")
-    plot_path = PLOTS_DIR / name
+    if not name.endswith(".png"):
+        raise HTTPException(status_code=400, detail="Invalid plot name")
+    plot_path = (PLOTS_DIR / name).resolve()
+    if not str(plot_path).startswith(str(PLOTS_DIR.resolve())):
+        raise HTTPException(status_code=400, detail="Invalid plot name")
     if not plot_path.exists():
         raise HTTPException(status_code=404, detail="Plot not found")
     return FileResponse(plot_path)
@@ -191,6 +205,137 @@ async def api_results_refresh():
             message = clean[-1] if clean else "unknown error"
             raise HTTPException(status_code=400, detail=f"{script}: {message}")
     return {"status": "ok", "output": "\n".join(output)}
+
+
+@app.get("/api/results/available")
+async def api_results_available():
+    """API: labels usable in policy comparison (baseline policies + run ids)."""
+    labels = []
+    raw_file = RESULTS_DIR / "baselines.json"
+    if raw_file.exists():
+        try:
+            with open(raw_file) as f:
+                episodes = json.load(f)
+            labels.extend(sorted({e.get("policy") for e in episodes if isinstance(e, dict)} - {None}))
+        except (json.JSONDecodeError, AttributeError):
+            pass
+    if RUNS_DIR.exists():
+        for run_dir in sorted(RUNS_DIR.iterdir(), reverse=True):
+            if (run_dir / "episodes.json").exists():
+                labels.append(run_dir.name)
+    return labels
+
+
+@app.post("/api/results/compare")
+async def api_results_compare(payload: Dict[str, Any]):
+    """API: plot one metric's episode curve for each selected policy/run."""
+    labels = payload.get("labels") or []
+    metric = payload.get("metric", "max_x_pos")
+    if len(labels) < 2:
+        raise HTTPException(status_code=400, detail="Select at least 2 policies/runs")
+    if metric not in ("max_x_pos", "total_reward", "length"):
+        raise HTTPException(status_code=400, detail="Unknown metric")
+
+    series = {}
+    for label in labels:
+        episodes = _episodes_for_label(label)
+        if not episodes:
+            raise HTTPException(status_code=404, detail=f"No episodes found for '{label}'")
+        episodes = sorted(episodes, key=lambda e: e.get("episode", 0))
+        series[label] = (
+            [e.get("episode", i) for i, e in enumerate(episodes)],
+            [e.get(metric) for e in episodes],
+        )
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+    for label, (x, y) in series.items():
+        ax.plot(x, y, label=label)
+    ax.set_xlabel("Episode")
+    ax.set_ylabel(metric)
+    ax.set_title(f"{metric} by episode")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+
+    PLOTS_DIR.mkdir(parents=True, exist_ok=True)
+    import hashlib
+
+    digest = hashlib.md5(
+        ("|".join(sorted(labels)) + metric).encode()
+    ).hexdigest()[:8]
+    compare_dir = PLOTS_DIR / "compare"
+    compare_dir.mkdir(parents=True, exist_ok=True)
+    plot_path = compare_dir / f"compare_{digest}.png"
+    fig.savefig(plot_path, dpi=100)
+    plt.close(fig)
+    return FileResponse(plot_path)
+
+
+def _episodes_for_label(label: str) -> List[Dict[str, Any]]:
+    raw_file = RESULTS_DIR / "baselines.json"
+    if raw_file.exists():
+        try:
+            with open(raw_file) as f:
+                episodes = json.load(f)
+            matches = [e for e in episodes if isinstance(e, dict) and e.get("policy") == label]
+            if matches:
+                return matches
+        except (json.JSONDecodeError, AttributeError):
+            pass
+    episodes_file = RUNS_DIR / label / "episodes.json"
+    if episodes_file.exists():
+        with open(episodes_file) as f:
+            return json.load(f)
+    return []
+
+
+@app.post("/api/results/full_analysis")
+async def api_results_full_analysis(config: Dict[str, Any]):
+    """API: run the full pipeline (eval -> analyze -> plot)."""
+    episodes = int(config.get("episodes", 10))
+    timeout = int(config.get("timeout", 2000))
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(ROOT)
+    proc = subprocess.run(
+        [sys.executable, "scripts/full_analysis.py",
+         "--episodes", str(episodes), "--timeout", str(timeout)],
+        cwd=ROOT, env=env, capture_output=True, text=True, timeout=1800,
+    )
+    if proc.returncode != 0:
+        tail = (proc.stderr or proc.stdout).strip().splitlines()[-5:]
+        raise HTTPException(status_code=400, detail="\n".join(tail))
+    return {"status": "ok", "output": proc.stdout[-2000:]}
+
+
+@app.get("/api/gridsearch/status")
+async def api_gridsearch_status():
+    status_file = ROOT / "data" / "grid_search_status.json"
+    if not status_file.exists():
+        return []
+    with open(status_file) as f:
+        return json.load(f)
+
+
+@app.post("/api/gridsearch")
+async def api_gridsearch(config: Dict[str, Any]):
+    """API: launch a hyper-parameter grid search (n processes at a time)."""
+    grid = config.get("grid")
+    if not grid or not isinstance(grid, dict):
+        raise HTTPException(status_code=400, detail="grid is required (JSON dict)")
+    parallel = int(config.get("parallel", 4))
+    updates = int(config.get("updates", 50))
+    base_config = config.get("config", "configs/ppo.yaml")
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(ROOT)
+    log_file = open(ROOT / "data" / "grid_search.log", "w")
+    subprocess.Popen(
+        [sys.executable, "scripts/grid_search.py", "--config", base_config,
+         "--grid", json.dumps(grid), "--updates", str(updates),
+         "--parallel", str(parallel)],
+        cwd=ROOT, env=env, stdout=log_file, stderr=subprocess.STDOUT,
+    )
+    return {"status": "started", "parallel": parallel, "updates": updates}
 
 
 @app.get("/api/runs")
@@ -263,7 +408,8 @@ async def api_train(config: Dict[str, Any]):
         raise HTTPException(status_code=400, detail="Training already running")
 
     # Save config to a temp file
-    config_path = CONFIGS_DIR / f"dashboard_{datetime.now():%Y%m%d_%H%M%S}.yaml"
+    config_path = ROOT / "data" / f"dashboard_{datetime.now():%Y%m%d_%H%M%S}.yaml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     with open(config_path, "w") as f:
         yaml.safe_dump(config, f)
 

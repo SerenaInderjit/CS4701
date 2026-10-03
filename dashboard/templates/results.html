@@ -10,6 +10,7 @@
         <a href="/">Overview</a>
         <a href="/train">Train</a>
         <a href="/play">Play</a>
+        <a href="/gridsearch">Grid Search</a>
         <a href="/results">Results</a>
     </nav>
     <main>
@@ -17,8 +18,26 @@
 
         <div class="button-group">
             <button id="refreshBtn">Regenerate Statistics &amp; Plots</button>
+            <button id="fullBtn">Run Full Analysis (Eval + Analyze + Plot)</button>
         </div>
         <div id="status">Loading...</div>
+
+        <h3>Compare Policies</h3>
+        <div id="compareControls">
+            <div id="labelList"></div>
+            <div class="form-group">
+                <label>Metric:</label>
+                <select id="compareMetric">
+                    <option value="max_x_pos">max_x_pos</option>
+                    <option value="total_reward">total_reward</option>
+                    <option value="length">length</option>
+                </select>
+            </div>
+            <div class="button-group">
+                <button id="compareBtn">Compare Selected</button>
+            </div>
+            <div id="compareResult"></div>
+        </div>
 
         <h3>Statistics</h3>
         <table id="statsTable">
@@ -73,10 +92,59 @@
             }
         }
 
+        async function loadLabels() {
+            const res = await fetch('/api/results/available');
+            const labels = await res.json();
+            document.getElementById('labelList').innerHTML = labels.map(l =>
+                `<label style="margin-right:1rem"><input type="checkbox" value="${l}"> ${l}</label>`
+            ).join('');
+        }
+
+        async function compare() {
+            const checked = Array.from(document.querySelectorAll('#labelList input:checked'))
+                .map(i => i.value);
+            const metric = document.getElementById('compareMetric').value;
+            if (checked.length < 2) {
+                document.getElementById('compareResult').textContent = 'Select at least 2.';
+                return;
+            }
+            const res = await fetch('/api/results/compare', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({labels: checked, metric}),
+            });
+            if (res.ok) {
+                const blob = await res.blob();
+                document.getElementById('compareResult').innerHTML =
+                    `<img src="${URL.createObjectURL(blob)}" style="max-width:100%">`;
+            } else {
+                const data = await res.json();
+                document.getElementById('compareResult').textContent = 'Error: ' + (data.detail || 'failed');
+            }
+        }
+
+        async function fullAnalysis() {
+            const status = document.getElementById('status');
+            status.textContent = 'Running full analysis (this may take a while)...';
+            const res = await fetch('/api/results/full_analysis', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({episodes: 10, timeout: 2000}),
+            });
+            const data = await res.json().catch(() => ({}));
+            status.textContent = res.ok ? 'Full analysis done.' : 'Error: ' + (data.detail || 'failed');
+            await loadStatistics();
+            await loadPlots();
+            await loadLabels();
+        }
+
         document.getElementById('refreshBtn').addEventListener('click', refresh);
+        document.getElementById('fullBtn').addEventListener('click', fullAnalysis);
+        document.getElementById('compareBtn').addEventListener('click', compare);
         (async () => {
             await loadStatistics();
             await loadPlots();
+            await loadLabels();
             document.getElementById('status').textContent = '';
         })();
     </script>

@@ -14,6 +14,10 @@ case "$1" in
         shift
         python scripts/evaluate_baseline.py "$@"
         ;;
+    analysis)
+        shift
+        python scripts/full_analysis.py "$@"
+        ;;
     train)
         shift
         # Start dashboard if not already running
@@ -27,7 +31,7 @@ case "$1" in
         python scripts/train.py "$@"
         ;;
     *)
-        echo "Usage: ./run.sh {test|play|eval [args]|train [args]}"
+        echo "Usage: ./run.sh {test|play|eval [args]|analysis [args]|train [args]}"
         exit 1
         ;;
 esac
