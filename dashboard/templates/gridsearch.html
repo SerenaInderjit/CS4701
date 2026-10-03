@@ -15,28 +15,32 @@
     </nav>
     <main>
         <h2>Grid Search</h2>
-        <div class="form-group">
-            <label>Base config:</label>
-            <select id="baseConfig">
-                <option value="configs/ppo.yaml">configs/ppo.yaml</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label>Grid (JSON: param -> list of values):</label>
-            <textarea id="grid" rows="5">{"learning_rate": [0.0003, 0.001], "epsilon": [0.1, 0.2]}</textarea>
-        </div>
-        <div class="form-group">
-            <label>Updates per run:</label>
-            <input type="number" id="updates" value="50" min="1">
-        </div>
-        <div class="form-group">
-            <label>Parallel processes (N at a time):</label>
-            <input type="number" id="parallel" value="4" min="1" max="8">
+        <h3>Sweep values (comma separated; leave empty to not sweep)</h3>
+        <div id="gridForm"></div>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Base config:</label>
+                <select id="baseConfig">
+                    <option value="configs/ppo.yaml">configs/ppo.yaml</option>
+                </select>
+                <span class="hint">default: configs/ppo.yaml</span>
+            </div>
+            <div class="form-group">
+                <label>Updates per run:</label>
+                <input type="number" id="updates" value="50" min="1">
+                <span class="hint">range 1+, typical 50–500</span>
+            </div>
+            <div class="form-group">
+                <label>Parallel processes (N at a time):</label>
+                <input type="number" id="parallel" value="4" min="1" max="8">
+                <span class="hint">range 1–8, default 4</span>
+            </div>
         </div>
         <div class="button-group">
             <button id="startBtn">Start Grid Search</button>
         </div>
         <div id="status"></div>
+        <div id="error" style="color: #b00020; margin: 1rem 0;"></div>
         <h3>Results</h3>
         <table>
             <thead><tr><th>Run</th><th>Combo</th><th>Status</th></tr></thead>
@@ -44,15 +48,60 @@
         </table>
     </main>
     <script>
+        const SWEEP_FIELDS = [
+            ['learning_rate', 'Learning Rate', 'typical: 0.0001, 0.0003, 0.001', '0.0003, 0.001'],
+            ['epsilon', 'Epsilon (clip)', 'typical: 0.1, 0.2, 0.3', '0.1, 0.2'],
+            ['gamma', 'Gamma', 'typical: 0.95, 0.99', ''],
+            ['gae_lambda', 'GAE Lambda', 'typical: 0.9, 0.95', ''],
+            ['epochs', 'Epochs', 'typical: 2, 4', ''],
+            ['minibatch_size', 'Minibatch Size', 'typical: 32, 64, 128', ''],
+            ['rollout_size', 'Rollout Size', 'typical: 256, 512', ''],
+        ];
+        document.getElementById('gridForm').innerHTML = '<div class="form-grid">' + SWEEP_FIELDS.map(([key, label, hint, def]) =>
+            `<div class="form-group">
+                <label>${label}:</label>
+                <input type="text" id="g_${key}" value="${def}">
+                <span class="hint">${hint}</span>
+            </div>`).join('') + '</div>';
+
+        function buildGrid() {
+            const grid = {};
+            const errors = [];
+            for (const [key] of SWEEP_FIELDS) {
+                const raw = document.getElementById('g_' + key).value.trim();
+                if (!raw) continue;
+                const values = raw.split(',').map(s => s.trim()).filter(Boolean).map(Number);
+                if (values.length === 0 || values.some(isNaN)) {
+                    errors.push(`${key}: values must be comma-separated numbers`);
+                } else {
+                    grid[key] = values;
+                }
+            }
+            if (Object.keys(grid).length === 0 && errors.length === 0) {
+                errors.push('Fill at least one sweep field');
+            }
+            return { grid, errors };
+        }
+
         document.getElementById('startBtn').addEventListener('click', async () => {
-            const grid = JSON.parse(document.getElementById('grid').value);
+            const { grid, errors } = buildGrid();
+            const errorDiv = document.getElementById('error');
+            if (errors.length) {
+                errorDiv.textContent = 'Invalid input: ' + errors.join('; ');
+                return;
+            }
+            errorDiv.textContent = '';
+            const updates = parseInt(document.getElementById('updates').value);
+            const parallel = parseInt(document.getElementById('parallel').value);
+            if (isNaN(updates) || updates < 1) { errorDiv.textContent = 'Updates must be >= 1'; return; }
+            if (isNaN(parallel) || parallel < 1 || parallel > 8) { errorDiv.textContent = 'Parallel must be 1-8'; return; }
             const res = await fetch('/api/gridsearch', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     grid,
-                    updates: parseInt(document.getElementById('updates').value),
-                    parallel: parseInt(document.getElementById('parallel').value),
+                    updates,
+                    parallel,
                     config: document.getElementById('baseConfig').value,
                 }),
             });

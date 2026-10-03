@@ -69,6 +69,21 @@ def _metrics(run_id: str) -> List[Dict[str, Any]]:
     return metrics
 
 
+@router.get("/api/checkpoint_dirs")
+async def api_checkpoint_dirs():
+    """API: checkpoint sub-directory names actually used across runs."""
+    dirs = set()
+    if RUNS_DIR.exists():
+        for run_dir in RUNS_DIR.iterdir():
+            if run_dir.is_dir():
+                for child in run_dir.iterdir():
+                    if child.is_dir() and any(child.glob("*.pt")):
+                        dirs.add(child.name)
+    if not dirs:
+        dirs = {"checkpoints"}
+    return sorted(dirs)
+
+
 @router.get("/api/runs")
 async def api_runs():
     """API: list all runs."""

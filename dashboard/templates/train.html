@@ -25,10 +25,7 @@
             </select>
         </div>
 
-        <div class="form-group">
-            <label>Config (YAML):</label>
-            <textarea id="configEditor" rows="20"></textarea>
-        </div>
+        <div id="configForm"></div>
 
         <div class="button-group">
             <button id="startBtn" onclick="startTraining()">Start Training</button>
@@ -36,6 +33,7 @@
         </div>
 
         <div id="status"></div>
+        <div id="error" style="color: #b00020; margin: 1rem 0;"></div>
 
         <h3>Training Log</h3>
         <pre id="log"></pre>
@@ -49,29 +47,127 @@
         };
 
         const presetSelect = document.getElementById('configPreset');
-        const editor = document.getElementById('configEditor');
+
+        // Field definitions: key -> {label, type, min, max, step}
+        const NUMERIC_FIELDS = [
+            ['updates', 'Updates', 1, 100000, 1],
+            ['rollout_size', 'Rollout Size', 8, 8192, 8],
+            ['seed', 'Seed', 0, 999999, 1],
+            ['checkpoint_every', 'Checkpoint Every (updates)', 1, 100000, 1],
+            ['learning_rate', 'Learning Rate', 1e-6, 1, 1e-6],
+            ['gamma', 'Gamma', 0, 1, 0.01],
+            ['gae_lambda', 'GAE Lambda', 0, 1, 0.01],
+            ['epsilon', 'Epsilon (clip range)', 0, 1, 0.01],
+            ['epochs', 'Epochs', 1, 100, 1],
+            ['minibatch_size', 'Minibatch Size', 1, 4096, 1],
+            ['hidden_dim', 'Hidden Dim', 16, 8192, 16],
+            ['frame_skip', 'Frame Skip', 1, 16, 1],
+            ['num_stack', 'Frame Stack', 1, 16, 1],
+            ['frame_size', 'Frame Size', 32, 256, 4],
+        ];
+
+        const form = document.getElementById('configForm');
+        const firstCfg = presets[Object.keys(presets)[0]] || {};
+        form.innerHTML = '<div class="form-grid">' + NUMERIC_FIELDS.map(([key, label, min, max, step]) =>
+            `<div class="form-group">
+                <label>${label}:</label>
+                <input type="number" id="f_${key}" min="${min}" max="${max}" step="${step}">
+                <span class="hint">range ${min}–${max}, default ${firstCfg[key] !== undefined ? firstCfg[key] : '-'}</span>
+            </div>`).join('') +
+            `<div class="form-group">
+                <label>Conv Channels (comma separated):</label>
+                <input type="text" id="f_conv_channels">
+                <span class="hint">e.g. 64,128,128</span>
+            </div>
+            <div class="form-group">
+                <label>Device:</label>
+                <select id="f_device">
+                    <option value="auto">auto</option>
+                    <option value="mps">mps</option>
+                    <option value="cuda">cuda</option>
+                    <option value="cpu">cpu</option>
+                </select>
+                <span class="hint">default: auto</span>
+            </div>
+            <div class="form-group">
+                <label>Checkpoint Dir:</label>
+                <select id="f_checkpoint_dir"></select>
+                <span class="hint">sub-directory name inside each run's folder</span>
+            </div></div>`;
+
+        fetch('/api/checkpoint_dirs').then(r => r.json()).then(dirs => {
+            const sel = document.getElementById('f_checkpoint_dir');
+            sel.innerHTML = dirs.map(d => `<option value="${d}">${d}</option>`).join('') || '<option value="checkpoints">checkpoints</option>';
+            const cfg = presets[presetSelect.value] || {};
+            if (cfg.checkpoint_dir) {
+                const name = cfg.checkpoint_dir.split('/').filter(Boolean).pop();
+                if ([...sel.options].some(o => o.value === name)) sel.value = name;
+            }
+        });
 
         function loadPreset() {
-            const name = presetSelect.value;
-            if (presets[name]) {
-                editor.value = JSON.stringify(presets[name], null, 2);
+            const cfg = presets[presetSelect.value] || {};
+            for (const [key] of NUMERIC_FIELDS) {
+                if (cfg[key] !== undefined) document.getElementById('f_' + key).value = cfg[key];
+            }
+            if (cfg.conv_channels) document.getElementById('f_conv_channels').value = cfg.conv_channels.join(',');
+            if (cfg.device) document.getElementById('f_device').value = cfg.device;
+            if (cfg.checkpoint_dir) {
+                const name = cfg.checkpoint_dir.split('/').filter(Boolean).pop();
+                const sel = document.getElementById('f_checkpoint_dir');
+                if ([...sel.options].some(o => o.value === name)) sel.value = name;
             }
         }
 
         presetSelect.addEventListener('change', loadPreset);
         loadPreset();
 
+        function buildConfig() {
+            const errors = [];
+            const config = {};
+            for (const [key, label, min, max, step] of NUMERIC_FIELDS) {
+                const el = document.getElementById('f_' + key);
+                const v = parseFloat(el.value);
+                if (el.value === '' || isNaN(v)) {
+                    errors.push(`${label} is required`);
+                } else if (v < min || v > max) {
+                    errors.push(`${label} must be between ${min} and ${max}`);
+                } else {
+                    config[key] = (step >= 1 && key !== 'learning_rate' && key !== 'gamma' && key !== 'gae_lambda' && key !== 'epsilon') ? parseInt(el.value) : v;
+                }
+            }
+            const channels = document.getElementById('f_conv_channels').value.split(',').map(s => parseInt(s.trim()));
+            if (channels.some(isNaN) || channels.length === 0) {
+                errors.push('Conv Channels must be comma-separated integers');
+            } else {
+                config.conv_channels = channels;
+            }
+            config.device = document.getElementById('f_device').value;
+            config.checkpoint_dir = document.getElementById('f_checkpoint_dir').value || 'checkpoints';
+            return { config, errors };
+        }
+
         async function startTraining() {
-            const config = JSON.parse(editor.value);
+            const { config, errors } = buildConfig();
+            const errorDiv = document.getElementById('error');
+            if (errors.length) {
+                errorDiv.textContent = 'Invalid input: ' + errors.join('; ');
+                return;
+            }
+            errorDiv.textContent = '';
             const res = await fetch('/api/train', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(config),
             });
             const data = await res.json();
-            document.getElementById('status').textContent = `Training started (PID ${data.pid})`;
-            document.getElementById('startBtn').disabled = true;
-            document.getElementById('stopBtn').disabled = false;
+            if (res.ok) {
+                document.getElementById('status').textContent = `Training started (PID ${data.pid})`;
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+            } else {
+                errorDiv.textContent = 'Error: ' + (data.detail || 'failed to start');
+            }
         }
 
         async function stopTraining() {

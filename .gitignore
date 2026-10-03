@@ -29,11 +29,10 @@ logs/
 /checkpoints/
 /runs/
 /results/
-/plots/
 /models/
 
 # Dashboard generated plots
-dashboard/plots/
+
 
 # Data (file-system "db"). Generated dirs are ignored; plots are tracked.
 data/runs/

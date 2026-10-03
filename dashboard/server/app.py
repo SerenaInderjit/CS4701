@@ -59,14 +59,25 @@ async def gridsearch_page(request: Request):
 @app.get("/play")
 async def play_page(request: Request):
     """Play page with live game view."""
-    checkpoints = []
+    checkpoint_groups = []
     if RUNS_DIR.exists():
         for run_dir in sorted(RUNS_DIR.iterdir(), reverse=True):
             ck_dir = run_dir / "checkpoints"
             if ck_dir.is_dir():
-                for f in sorted(ck_dir.glob("*.pt")):
-                    checkpoints.append(str(f.relative_to(ROOT)))
-    return templates.TemplateResponse(request, "play.html", {"checkpoints": checkpoints})
+                files = sorted(f.name for f in ck_dir.glob("*.pt"))
+                if files:
+                    checkpoint_groups.append({"run_id": run_dir.name, "files": files})
+    weights = []
+    for group in checkpoint_groups:
+        for f in group["files"]:
+            weights.append({
+                "label": f"{group['run_id']}/{f}",
+                "path": f"data/runs/{group['run_id']}/checkpoints/{f}",
+                "best": f == "best.pt",
+            })
+    # Best weights first so they become the default selection
+    weights.sort(key=lambda w: (not w["best"], w["label"]))
+    return templates.TemplateResponse(request, "play.html", {"weights": weights})
 
 
 @app.get("/results")

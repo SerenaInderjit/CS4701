@@ -16,23 +16,26 @@
     <main>
         <h2>Play</h2>
 
-        <div class="form-group">
-            <label>Checkpoint:</label>
-            <select id="checkpoint">
-                {% for c in checkpoints %}
-                <option value="{{ c }}">{{ c }}</option>
-                {% endfor %}
-            </select>
-        </div>
-
-        <div class="form-group">
-            <label>Episodes:</label>
-            <input type="number" id="episodes" value="3" min="1" max="10">
-        </div>
-
-        <div class="form-group">
-            <label>FPS:</label>
-            <input type="number" id="fps" value="15" min="1" max="60">
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Model weights:</label>
+                <select id="checkpoint">
+                    {% for w in weights %}
+                    <option value="{{ w.path }}">{{ w.label }}{% if w.best %} (best){% endif %}</option>
+                    {% endfor %}
+                </select>
+                <span class="hint">default: best.pt from the most recent run, if available</span>
+            </div>
+            <div class="form-group">
+                <label>Episodes:</label>
+                <input type="number" id="episodes" value="3" min="1" max="10">
+                <span class="hint">range 1–10, default 3</span>
+            </div>
+            <div class="form-group">
+                <label>FPS:</label>
+                <input type="number" id="fps" value="15" min="1" max="60">
+                <span class="hint">range 1–60, default 15</span>
+            </div>
         </div>
 
         <div class="button-group">
@@ -57,6 +60,10 @@
             const checkpoint = document.getElementById('checkpoint').value;
             const episodes = document.getElementById('episodes').value;
             const fps = document.getElementById('fps').value;
+            if (!checkpoint) {
+                document.getElementById('status').textContent = 'Select model weights above';
+                return;
+            }
 
             const res = await fetch('/api/play/start', {
                 method: 'POST',
@@ -64,6 +71,10 @@
                 body: JSON.stringify({ checkpoint, episodes, fps }),
             });
             const data = await res.json();
+            if (!res.ok) {
+                document.getElementById('status').textContent = 'Error: ' + (data.detail || 'failed');
+                return;
+            }
             document.getElementById('status').textContent = data.status;
             document.getElementById('startBtn').disabled = true;
             document.getElementById('stopBtn').disabled = false;
