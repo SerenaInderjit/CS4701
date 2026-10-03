@@ -156,9 +156,28 @@ scripts/
   plot_results.py        Generate plots from saved results
   push_weights.py        Upload checkpoints to Hugging Face Hub
   pull_weights.py        Download checkpoints from Hugging Face Hub
+  full_analysis.py      End-to-end baseline analysis (eval + analyze + plot)
+  grid_search.py        Hyper-parameter sweep runner (N processes at a time)
 configs/
   ppo.yaml               Default training configuration
+  baselines.yaml         Baseline policies for evaluation
 tests/                   pytest suite (fakes.py is an emulator-free fake environment)
+dashboard/
+  server/
+    app.py              FastAPI wiring + HTML page routes
+    common.py           Paths and shared template/static wiring
+    runs_api.py         Run listing, metrics, run plots
+    results_api.py      Baselines, statistics, plots, compare, full analysis
+    train_api.py        Training control + config listing
+    play_api.py         Live play control
+    gridsearch_api.py   Grid search launch/status
+  templates/            Jinja2 pages
+  static/               CSS
+data/
+  runs/<run_id>/        One training run: config, metrics.jsonl, episodes.json,
+                        checkpoints/, plots/
+  results/              baselines.json + statistics.json
+  plots/                baseline_<ts>/ and compare/ PNGs (tracked in git)
 ```
 
 ## Using the environment
