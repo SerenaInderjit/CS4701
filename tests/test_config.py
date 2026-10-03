@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 from src.training.config import load_config, save_config
-from src.training.reproducibility import seed_everything
+from src.training.config import seed_everything
 
 
 def test_load_default_config():
@@ -11,7 +11,7 @@ def test_load_default_config():
     assert config["updates"] == 1000
     assert config["rollout_size"] == 2048
     assert config["epsilon"] == 0.2
-    assert config["checkpoint_dir"] == "data/checkpoints"
+    assert config["checkpoint_dir"] == "checkpoints"
 
 
 def test_save_and_load_round_trip(tmp_path):

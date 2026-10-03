@@ -4,8 +4,6 @@ from typing import Any, Dict, Optional
 
 import torch
 
-from src.paths import CHECKPOINTS_DIR
-
 
 def save_checkpoint(
     path: str,
@@ -68,7 +66,7 @@ class CheckpointManager:
 
     _PATTERN = re.compile(r"^checkpoint_(\d+)\.pt$")
 
-    def __init__(self, directory: str = CHECKPOINTS_DIR, keep_top: int = 3):
+    def __init__(self, directory: str = "checkpoints", keep_top: int = 3):
         self.directory = directory
         self.keep_top = keep_top
         self.best_score: Optional[float] = None
@@ -134,10 +132,10 @@ class CheckpointManager:
             save_checkpoint(self.best_path, model, optimizer, step=step, metrics=metrics, extra=extra)
 
         # Bound periodic saves to the top `keep_top` by score (recency wins ties).
-        scored = [
-            (self._score_of(p) if self._score_of(p) is not None else float("-inf"), self._step_of(p), p)
-            for p in self._periodic_paths()
-        ]
+        scored = []
+        for p in self._periodic_paths():
+            score = self._score_of(p)
+            scored.append((score if score is not None else float("-inf"), self._step_of(p), p))
         scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
         for _, _, old_path in scored[self.keep_top:]:
             os.remove(old_path)
@@ -153,8 +151,10 @@ class CheckpointManager:
         if os.path.exists(self.latest_checkpoint_path):
             os.remove(self.latest_checkpoint_path)
         keep = self.keep_top if keep_top is None else keep_top
-        scored = [(self._score_of(p) if self._score_of(p) is not None else float("-inf"), self._step_of(p), p)
-                  for p in self._periodic_paths()]
+        scored = []
+        for p in self._periodic_paths():
+            score = self._score_of(p)
+            scored.append((score if score is not None else float("-inf"), self._step_of(p), p))
         scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
         for _, _, old_path in scored[keep:]:
             os.remove(old_path)

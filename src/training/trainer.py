@@ -3,7 +3,6 @@ import os
 from datetime import datetime
 from typing import Optional
 
-from src.paths import CHECKPOINTS_DIR
 from src.training.checkpoint import CheckpointManager
 from src.training.logger import Logger
 from src.training.runner import Runner
@@ -25,7 +24,7 @@ class Trainer:
         env,
         agent,
         buffer,
-        checkpoint_dir: str = CHECKPOINTS_DIR,
+        checkpoint_dir: Optional[str] = None,
         logger: Optional[Logger] = None,
         checkpoint_every: int = 10,
         run_dir: Optional[str] = None,
@@ -35,6 +34,10 @@ class Trainer:
         self.buffer = buffer
         self.logger = logger or Logger(keep_step_records=False)
         self.runner = Runner(env, agent, self.logger)
+        if checkpoint_dir is None:
+            checkpoint_dir = (
+                os.path.join(run_dir, "checkpoints") if run_dir else "checkpoints"
+            )
         self.checkpoints = CheckpointManager(checkpoint_dir)
         self.checkpoint_every = checkpoint_every
         self.run_dir = run_dir

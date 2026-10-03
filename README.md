@@ -64,7 +64,7 @@ emulator allows, so it plays much faster than real time.
 To watch a trained agent (see [Training](#training)):
 
 ```bash
-PYTHONPATH="$PWD" python scripts/play_mario.py --policy ppo --checkpoint data/checkpoints/<run_id>/best.pt --episodes 3
+PYTHONPATH="$PWD" python scripts/play_mario.py --policy ppo --checkpoint data/runs/<run_id>/checkpoints/best.pt --episodes 3
 ```
 
 ## Training
@@ -81,11 +81,12 @@ episode boundaries, computes GAE advantages, and runs `epochs` minibatch PPO
 updates. Progress (logged per update) includes policy/value loss and episode
 statistics over the last 10 episodes.
 
-Every run is self-contained in `data/runs/ppo_<timestamp>/` (gitignored):
+Each self-contained run lives in `data/runs/<run_id>/` with `config.yaml`,
+`run.json`, `metrics.jsonl`, `episodes.json`, `checkpoints/`, and `plots/`.
 `config.yaml` (resolved config), `run.json` (git commit, seed, start time),
 `metrics.jsonl` (one line per update) and `episodes.json`.
 
-Checkpoints are written to `data/checkpoints/<run_id>/` every `--checkpoint-every`
+Checkpoints are written to `data/runs/<run_id>/checkpoints/` every `--checkpoint-every`
 updates (and at the end). While training: `latest.pt` (most recent, for `--resume`),
 `best.pt` (best mean distance so far), and periodic `checkpoint_<step>.pt` capped at
 the top 3 by score. When training finishes, `latest.pt` is deleted and only `best.pt`
@@ -126,6 +127,7 @@ A trained agent should beat these. "Always right" dies at the first goomba
 
 ```
 src/
+  paths.py              Data directory layout (runs/, results/, plots/)
   environment/
     mario_environment.py   Environment wrapper (frame skip, preprocessing, reward shaping)
     preprocessing.py       Grayscale, resize to 84x84, 4-frame stacking
@@ -138,9 +140,8 @@ src/
     runner.py              Runs episodes and collects rollouts
     trainer.py             PPO training loop (rollout -> GAE -> update -> checkpoint)
     logger.py              Per-step records and per-episode statistics
-    checkpoint.py          Save/load models, keep last N plus best
-    config.py              YAML config load/save
-    reproducibility.py     Seeding and git-commit tracking
+    checkpoint.py          Save/load models, keep top-k by score plus best
+    config.py              YAML config load/save, seeding, device resolution
   policies/
     baselines.py           Random and constant baseline policies
     ppo_policy.py          Loads a trained checkpoint for play/eval
@@ -181,7 +182,7 @@ env.close()
 
 ## Sharing model weights
 
-Checkpoints live in `data/checkpoints/` (gitignored, `*.pt`). To share them,
+Checkpoints live in `data/runs/<run_id>/checkpoints/` (gitignored, `*.pt`). To share them,
 publish to Hugging Face Hub:
 
 ```bash
@@ -189,5 +190,8 @@ python scripts/push_weights.py --repo-id <user>/mario-ppo --run-id <run_id>
 python scripts/pull_weights.py --repo-id <user>/mario-ppo --run-id <run_id>
 ```
 
-Hub layout: `<run_id>/config.yaml`, `<run_id>/best.pt`, `<run_id>/checkpoint_*.pt`.
+Hub layout: `<run_id>/config.yaml`, `<run_id>/run.json`, `<run_id>/checkpoints/best.pt`.
+By default only the **top 10 runs by best distance** are pushed, and for each run
+only `best.pt` (+ `latest.pt` while training is unfinished). Pass `--include-top-k`
+to also push the top-3 periodic checkpoints, and `--max-runs` to change the cap.
 

@@ -27,10 +27,9 @@ from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 
 ROOT = Path(__file__).resolve().parent.parent
-from src.paths import RUNS_DIR as _RUNS_DIR, CHECKPOINTS_DIR as _CKPT_DIR, RESULTS_DIR as _RESULTS_DIR, PLOTS_DIR as _PLOTS_DIR
+from src.paths import RUNS_DIR as _RUNS_DIR, RESULTS_DIR as _RESULTS_DIR, PLOTS_DIR as _PLOTS_DIR
 
 RUNS_DIR = Path(_RUNS_DIR)
-CHECKPOINTS_DIR = Path(_CKPT_DIR)
 CONFIGS_DIR = ROOT / "configs"
 RESULTS_DIR = Path(_RESULTS_DIR)
 PLOTS_DIR = Path(_PLOTS_DIR)
@@ -117,9 +116,12 @@ async def train_page(request: Request):
 async def play_page(request: Request):
     """Play page with live game view."""
     checkpoints = []
-    if CHECKPOINTS_DIR.exists():
-        for f in CHECKPOINTS_DIR.glob("*.pt"):
-            checkpoints.append(f.name)
+    if RUNS_DIR.exists():
+        for run_dir in sorted(RUNS_DIR.iterdir(), reverse=True):
+            ck_dir = run_dir / "checkpoints"
+            if ck_dir.is_dir():
+                for f in sorted(ck_dir.glob("*.pt")):
+                    checkpoints.append(str(f.relative_to(ROOT)))
     return templates.TemplateResponse(request, "play.html", {"checkpoints": checkpoints})
 
 
@@ -245,7 +247,7 @@ async def api_plot(run_id: str, metric: str):
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
 
-    plot_dir = PLOTS_DIR / "runs"
+    plot_dir = RUNS_DIR / run_id / "plots"
     plot_dir.mkdir(parents=True, exist_ok=True)
     plot_path = plot_dir / f"{run_id}_{metric}.png"
     fig.savefig(plot_path, dpi=100)
@@ -320,7 +322,9 @@ async def api_play_start(config: Dict[str, Any]):
     if _play_process is not None and _play_process.poll() is None:
         raise HTTPException(status_code=400, detail="Already playing")
 
-    checkpoint = config.get("checkpoint", "checkpoints/best.pt")
+    checkpoint = config.get("checkpoint")
+    if not checkpoint:
+        raise HTTPException(status_code=400, detail="checkpoint is required")
     episodes = config.get("episodes", 3)
     fps = config.get("fps", 15)
 

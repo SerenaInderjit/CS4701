@@ -17,8 +17,7 @@ from src.algorithms.ppo import PPO
 from src.environment.mario_environment import make_training_environment
 from src.paths import RUNS_DIR
 from src.training.config import load_config, save_config
-from src.training.device import resolve_device
-from src.training.reproducibility import git_commit_hash, seed_everything
+from src.training.config import git_commit_hash, resolve_device, seed_everything
 from src.training.rollout_buffer import RolloutBuffer
 from src.training.trainer import Trainer
 
@@ -59,12 +58,7 @@ def main():
 
     run_dir = args.run_dir or os.path.join(RUNS_DIR, f"ppo_{datetime.now():%Y%m%d_%H%M%S}")
     run_name = os.path.basename(run_dir)
-    checkpoint_root = config.get("checkpoint_dir", "data/checkpoints")
-    checkpoint_dir = (
-        os.path.join(checkpoint_root, run_name)
-        if checkpoint_root.rstrip("/").endswith("checkpoints")
-        else checkpoint_root
-    )
+    checkpoint_dir = os.path.join(run_dir, config.get("checkpoint_dir", "checkpoints"))
     config["checkpoint_dir"] = checkpoint_dir
     os.makedirs(run_dir, exist_ok=True)
     save_config(config, os.path.join(run_dir, "config.yaml"))

@@ -18,7 +18,9 @@
         <div class="form-group">
             <label>Checkpoint:</label>
             <select id="checkpoint">
-                <option value="checkpoints/best.pt">best.pt</option>
+                {% for c in checkpoints %}
+                <option value="{{ c }}">{{ c }}</option>
+                {% endfor %}
             </select>
         </div>
 
