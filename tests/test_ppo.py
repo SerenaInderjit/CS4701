@@ -78,7 +78,7 @@ def test_compute_gae_bootstraps_final_step():
     np.testing.assert_allclose(advantages, [1.0])
 
 
-def test_update_returns_mean_losses():
+def test_update_returns_diagnostics():
     agent = make_agent()
     n = 16
     observations = np.random.randint(0, 256, size=(n, 4, 84, 84), dtype=np.uint8)
@@ -89,9 +89,19 @@ def test_update_returns_mean_losses():
 
     metrics = agent.update(observations, actions, old_log_probs, advantages, returns)
 
-    assert set(metrics) == {"policy_loss", "value_loss"}
-    assert metrics["policy_loss"] > 0
+    assert set(metrics) == {
+        "policy_loss", "value_loss", "entropy", "explained_variance",
+        "approx_kl", "clip_fraction",
+    }
     assert metrics["value_loss"] > 0
+    assert 0 < metrics["entropy"] <= np.log(7) + 1e-3
+
+
+def test_initial_policy_is_near_uniform():
+    agent = make_agent()
+    obs = np.random.randint(0, 256, size=(4, 84, 84), dtype=np.uint8)
+    distribution, _ = agent.evaluate(obs)
+    assert distribution.entropy().item() > 0.99 * np.log(7)
 
 
 def test_update_changes_policy():
@@ -111,3 +121,29 @@ def test_update_changes_policy():
 
     after = agent.policy_model(obs_tensor).detach()
     assert not torch.allclose(before, after)
+
+
+def test_critic_fits_large_scale_returns():
+    # Returns far from zero (e.g. ~50) must still be learnable: the critic
+    # trains on normalized targets, and value_of() reports raw units.
+    agent = make_agent(learning_rate=1e-3, epochs=30, minibatch_size=16)
+    n = 16
+    observations = np.random.randint(0, 256, size=(n, 4, 84, 84), dtype=np.uint8)
+    returns = np.random.randn(n).astype(np.float32) * 5 + 50
+    advantages = np.zeros(n, dtype=np.float32)
+    old_log_probs = np.full(n, -np.log(7), dtype=np.float32)
+    actions = np.random.randint(0, 7, size=n)
+
+    agent.update(observations, actions, old_log_probs, advantages, returns)
+
+    predicted = np.array([agent.value_of(o) for o in observations])
+    assert abs(predicted.mean() - 50) < 10
+
+
+def test_state_dicts_round_trip_includes_return_stats():
+    agent = make_agent()
+    agent.return_stats.update(np.array([10.0, 20.0, 30.0]))
+    other = make_agent()
+    other.load_state_dicts(agent.state_dicts())
+    assert other.return_stats.mean == agent.return_stats.mean
+    assert other.return_stats.var == agent.return_stats.var

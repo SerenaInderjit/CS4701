@@ -20,6 +20,7 @@ from src.training.config import load_config, save_config
 from src.training.config import git_commit_hash, resolve_device, seed_everything
 from src.training.rollout_buffer import RolloutBuffer
 from src.training.trainer import Trainer
+from src.environment.reward import RewardConfig
 
 
 def main():
@@ -33,6 +34,7 @@ def main():
     parser.add_argument("--gamma", type=float, default=None)
     parser.add_argument("--gae-lambda", type=float, default=None)
     parser.add_argument("--epsilon", type=float, default=None, help="PPO clip range")
+    parser.add_argument("--ent-coef", type=float, default=None, help="entropy bonus coefficient")
     parser.add_argument("--epochs", type=int, default=None, help="optimization epochs per rollout")
     parser.add_argument("--minibatch-size", type=int, default=None)
     parser.add_argument("--frame-skip", type=int, default=None)
@@ -73,10 +75,21 @@ def main():
         }, f, indent=2)
     logging.info(f"Run directory: {run_dir}")
 
+    base = RewardConfig()
+    s = config.get("reward_scale", 1.0)
+    reward_config = RewardConfig(
+        x_progress_weight=config.get("x_progress_weight", base.x_progress_weight) * s,
+        time_penalty_weight=config.get("time_penalty_weight", base.time_penalty_weight) * s,
+        death_penalty=config.get("death_penalty", base.death_penalty) * s,
+        flag_bonus=config.get("flag_bonus", base.flag_bonus) * s,
+        reward_clip=config.get("reward_clip", base.reward_clip) * s,
+    )
+
     env = make_training_environment(
         frame_skip=config["frame_skip"],
         num_stack=config["num_stack"],
         frame_size=(config["frame_size"], config["frame_size"]),
+        reward_config=reward_config,
     )
 
     agent = PPO(
@@ -91,6 +104,8 @@ def main():
         device=config["device"],
         conv_channels=tuple(config.get("conv_channels", [64, 128, 128])),
         hidden_dim=config.get("hidden_dim", 1024),
+        ent_coef=config.get("ent_coef", 0.01),
+        max_grad_norm=config.get("max_grad_norm", 0.5),
     )
 
     buffer = RolloutBuffer(
@@ -105,6 +120,7 @@ def main():
         checkpoint_dir=checkpoint_dir,
         checkpoint_every=config["checkpoint_every"],
         run_dir=run_dir,
+        lr_anneal=bool(config.get("lr_anneal", False)),
     )
 
     try:

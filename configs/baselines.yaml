@@ -4,3 +4,5 @@
 #   - zero          (always action 0)
 policies:
   - random
+  - always_right
+  - zero

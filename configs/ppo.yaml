@@ -10,12 +10,13 @@ checkpoint_every: 10     # save a checkpoint every N updates (and at the end)
 checkpoint_dir: checkpoints
 
 # Agent
-learning_rate: 0.0003
+learning_rate: 0.00025
+lr_anneal: true          # linearly decay learning rate to 0 over the run
 gamma: 0.99
 gae_lambda: 0.95
 epsilon: 0.2             # PPO clip range
-epochs: 2                # optimization epochs over each rollout
-minibatch_size: 64
+epochs: 4                # optimization epochs over each rollout
+minibatch_size: 128
 conv_channels: [64, 128, 128]   # CNN conv layer channels
 hidden_dim: 1024                # CNN hidden layer size
 
@@ -23,6 +24,19 @@ hidden_dim: 1024                # CNN hidden layer size
 frame_skip: 4
 num_stack: 4
 frame_size: 84           # 64 is ~1.7x faster on CPU, but slower on MPS/GPU
+
+# Reward shaping (all scaled by reward_scale). The critic now trains on
+# normalized returns, so reward_scale no longer affects value-loss scale.
+reward_scale: 1.0
+x_progress_weight: 1.0
+time_penalty_weight: 0.1
+death_penalty: -15.0
+flag_bonus: 15.0
+reward_clip: 15.0
+
+# PPO extras
+ent_coef: 0.02           # entropy bonus: keeps exploring (needed to find pipe jumps)
+max_grad_norm: 0.5
 
 # Hardware
 # Device is auto-detected: MPS (Apple Silicon) > CUDA (NVIDIA) > CPU.

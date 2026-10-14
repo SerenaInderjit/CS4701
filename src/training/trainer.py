@@ -17,6 +17,9 @@ class Trainer:
 
     If `run_dir` is given, the run is self-contained there: one JSON line per
     update in metrics.jsonl and the episode log in episodes.json.
+
+    If `lr_anneal` is True and the agent has `set_learning_rate`, the learning
+    rate decays linearly from its initial value to 0 over the run.
     """
 
     def __init__(
@@ -28,6 +31,7 @@ class Trainer:
         logger: Optional[Logger] = None,
         checkpoint_every: int = 10,
         run_dir: Optional[str] = None,
+        lr_anneal: bool = False,
     ):
         self.env = env
         self.agent = agent
@@ -41,6 +45,8 @@ class Trainer:
         self.checkpoints = CheckpointManager(checkpoint_dir)
         self.checkpoint_every = checkpoint_every
         self.run_dir = run_dir
+        self.lr_anneal = lr_anneal
+        self._base_lr = getattr(agent, "learning_rate", None)
         if self.run_dir is not None:
             os.makedirs(self.run_dir, exist_ok=True)
 
@@ -48,6 +54,7 @@ class Trainer:
         """Run `updates` PPO updates, numbering them from `start` (for resume)."""
         self.logger.info(f"Starting PPO training for {updates} updates")
         for update in range(start, updates + 1):
+            self._anneal_lr(update, updates)
             metrics = self._update()
             summary = self.logger.summary(last_n=10)
             self._log_update(update, updates, metrics, summary)
@@ -66,6 +73,12 @@ class Trainer:
         self.agent.load_state_dicts(payload.get("additional_state") or {})
         self.logger.info(f"Resumed from {self.checkpoints.latest_path()} at update {payload['step']}")
         return payload["step"]
+
+    def _anneal_lr(self, update: int, updates: int) -> None:
+        if not self.lr_anneal or self._base_lr is None or not hasattr(self.agent, "set_learning_rate"):
+            return
+        fraction = 1.0 - (update - 1) / updates
+        self.agent.set_learning_rate(self._base_lr * fraction)
 
     def _update(self) -> dict:
         """Collect one rollout and run the PPO update on it."""
@@ -87,6 +100,9 @@ class Trainer:
             f"update {update}/{updates} | "
             f"policy_loss={metrics['policy_loss']:.4f} | "
             f"value_loss={metrics['value_loss']:.4f} | "
+            f"entropy={metrics.get('entropy', float('nan')):.3f} | "
+            f"ev={metrics.get('explained_variance', float('nan')):.3f} | "
+            f"kl={metrics.get('approx_kl', float('nan')):.4f} | "
             f"episodes={summary['num_episodes']} | "
             f"mean_reward={summary.get('mean_reward', 0.0):.1f} | "
             f"mean_distance={summary.get('mean_distance', 0.0):.1f} | "
@@ -105,16 +121,16 @@ class Trainer:
                 f.write(json.dumps(record) + "\n")
 
     def _save_checkpoint(self, update: int, metrics: dict, summary: dict) -> None:
-        # The policy model is what evaluation/playback needs; the value model and
-        # both optimizers ride along in additional_state so resume restores the
-        # full agent.
-        score = summary.get("best_distance")
+        # The policy model is what evaluation/playback needs; the value model,
+        # both optimizers and the return statistics ride along in
+        # additional_state so resume restores the full agent.
+        # Score = mean distance over the last 10 episodes (less noisy than best).
         path = self.checkpoints.save(
             self.agent.policy_model,
             self.agent.policy_optimizer,
             step=update,
             metrics=metrics,
-            score=score,
+            score=summary.get("mean_distance"),
             additional_state=self.agent.state_dicts(),
         )
         self.logger.info(f"Saved checkpoint to {path}")

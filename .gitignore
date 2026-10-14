@@ -32,7 +32,10 @@ logs/
 /models/
 
 # Dashboard generated plots
-
+dashboard/frames/
+data/dashboard_*.yaml
+data/grid_search_status.json
+*.pt.tmp
 
 # Data (file-system "db"). Generated dirs are ignored; plots are tracked.
 data/runs/
