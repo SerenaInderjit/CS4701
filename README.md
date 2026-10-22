@@ -43,7 +43,9 @@ export PYTHONPATH="$PWD"
 |---|---|
 | `bash run.sh test` | Run the full test suite |
 | `bash run.sh train` | Train PPO (also starts the dashboard) |
+| `bash run.sh train_dqn` | Train DQN (also starts the dashboard) |
 | `bash run.sh eval --episodes 100 --timeout 2000` | Evaluate the baseline policies |
+| `bash run.sh eval_dqn --run <run_dir> --episodes 100` | Evaluate a trained DQN run and add it to the comparison |
 | `python scripts/evaluate_ppo.py --run <run_dir>` | Evaluate a trained PPO run and add it to the comparison |
 | `python scripts/analyze_results.py` | Calculate statistics with pandas |
 | `python scripts/plot_results.py` | Generate comparison plots |
@@ -57,7 +59,7 @@ script directly:
 python scripts/play_mario.py --policy right --episodes 2
 ```
 
-`--policy` is `random`, `right`, or `ppo`. The window runs as fast as the
+`--policy` is `random`, `right`, `ppo` or `dqn`. The window runs as fast as the
 emulator allows unless you pass `--fps`.
 
 To watch a trained agent:
@@ -70,7 +72,8 @@ python scripts/play_mario.py --policy ppo --episodes 3 --fps 15 \
 The network size and frame settings are read automatically from
 `data/runs/<run_id>/config.yaml`, so the checkpoint always loads with the
 architecture it was trained with. Add `--greedy` to play the most likely
-action instead of sampling.
+action instead of sampling. For DQN that means epsilon = 0; without it the
+standard evaluation epsilon of 0.05 is used.
 
 ## Training
 
@@ -150,9 +153,120 @@ Notes: updates since the last checkpoint are repeated, so a few lines in
 before an interruption are not in it; `metrics.jsonl` still has the full
 training curve.
 
+## Training with DQN
+
+```bash
+bash run.sh train_dqn                                            # configs/dqn.yaml
+bash run.sh train_dqn --config configs/dqn.yaml --total-steps 50000
+```
+
+DQN is an off-policy alternative to PPO, implemented in
+`src/algorithms/dqn.py` with the training loop in
+`src/training/dqn_trainer.py`. The differences that matter:
+
+- **One gradient step per environment step** after a burn-in
+  (`train_start`), instead of `epochs` passes over a fresh rollout. It is
+  much slower per step: about 12-20 steps/s on CPU, so a 300k-step run
+  takes ~6 hours. Watch the `steps/s` field in the log line.
+- **A replay buffer** (`src/training/replay_buffer.py`) stores the last
+  `buffer_size` transitions and samples mini-batches uniformly at random.
+  Consecutive Mario frames are highly correlated; shuffling decorrelates
+  them and lets every collected transition be reused.
+- **A target network** that is resynced every `target_update_freq` gradient
+  steps, so the TD target stays fixed while the online network regresses on
+  it. The target is `r + gamma * (1 - done) * max_a' Q_target(s', a')` and
+  the loss is Huber.
+- **Epsilon-greedy exploration**, annealed linearly from `epsilon_start` to
+  `epsilon_end` over `epsilon_decay_steps`.
+- The network is the standard Nature-DQN architecture: 32/64/64 conv
+  channels and a 512-unit dense layer, with no softmax (the output is a
+  Q-value per action, so the greedy action is the argmax).
+
+Runs are written to `data/runs/dqn_<timestamp>/` with the same layout as PPO.
+`metrics.jsonl` records `loss`, `td_error`, `q_mean`, `epsilon` and the
+episode statistics.
+
+**Memory.** The buffer stores two stacked `(4, 84, 84)` uint8 observations
+per transition, about 56 KB each. The default `buffer_size: 30000` therefore
+needs ~1.7 GB of RAM. Lower it if you are short on memory.
+
+**Reward shaping.** The dense part of the reward (progress minus time
+penalty) is clipped to `[-dense_clip, dense_clip]` and the flag bonus and
+death penalty are added *after* the clip. Clipping the total reward would
+flatten the terminal bonus into the same range as a single step and make
+"survive longer" the objective.
+
+### DQN training diagnostics
+
+| Metric | Healthy behavior |
+|---|---|
+| `loss` | Falls well below its starting value, then stays low and noisy |
+| `td_error` | Shrinks over the first few thousand steps |
+| `q_mean` | Rises away from 0 as the agent learns what is worth |
+| `epsilon` | Decreases linearly from 1.0 towards `epsilon_end` |
+| `mean_distance` | Trends upward |
+| `eval_mean_distance` | Only on evaluation rows (`eval_every`): the greedy score. Once the agent is competent it should beat the sampled score; while it is still near-random it often does not |
+
+Evaluation rows also carry `eval_completion_rate`. Both fields are absent from
+rows where no evaluation ran.
+
+### Evaluating DQN
+
+```bash
+bash run.sh eval_dqn --run data/runs/dqn_<timestamp> --episodes 100
+```
+
+This evaluates the checkpoint twice and merges both into
+`data/results/baselines.json` so the analysis scripts and the dashboard
+compare them against the baselines and PPO:
+
+- `dqn_greedy`: always the argmax action (epsilon = 0).
+- `dqn_eps005`: epsilon = 0.05, the standard DQN evaluation protocol and the
+  honest estimate, because the agent is trained with exploration.
+
+### Resuming a DQN run
+
+Same as PPO, but point at the existing run directory:
+
+```bash
+RUN="data/runs/dqn_<timestamp>"
+bash run.sh train_dqn --config "$RUN/config.yaml" --run-dir "$RUN" \
+  --checkpoint-dir "$RUN/checkpoints" --resume
+```
+
+The checkpoint stores the target network and the epsilon schedule as well, so
+a resumed run continues with the same exploration state instead of starting
+over.
+
+**The replay buffer is not checkpointed.** A resumed run starts with an empty
+buffer and pauses gradient updates for a few dozen steps while it refills.
+That is deliberate: the buffer is large (~1.7 GB at the default size) and the
+old transitions are only mildly useful. The network, target network, optimizer
+and epsilon all resume exactly where they left off.
+
+If `--resume` cannot find anything it fails with a `FileNotFoundError` naming
+the directory it looked in. That usually means `--run-dir` points somewhere
+other than the directory the training run actually used.
+
+### Verifying the DQN implementation
+
+Unit tests cover the components in isolation, but these check the pieces
+against the real emulator:
+
+```bash
+python scripts/verify_dqn.py      # env + agent + buffer + a gradient step, ~1 min
+python scripts/verify_dashboard.py  # dashboard dispatch + template rendering
+```
+
+`verify_dqn.py` ends by overfitting a single batch: the loss should fall from
+roughly 7 to below 1. If it does not, the learning machinery is broken (as
+opposed to merely untrained). For a learning-dynamics check, run a few
+thousand steps and confirm `q_mean` rises, `epsilon` falls linearly and
+`mean_distance` trends upward — see the diagnostics table above.
+
 ## Evaluating and comparing against the baselines
 
-All policies (baselines and trained PPO) are evaluated through the same
+All policies (baselines and trained PPO/DQN) are evaluated through the same
 harness (`src/evaluation/evaluation.py`), so the numbers are directly
 comparable. Do not compare against the training `episodes.json`: training
 episodes use sampled actions and are not a clean evaluation.
@@ -238,6 +352,11 @@ single obstacle. The training curve (mean distance rising from ~800 to
 ~3000 over the run) is in each run's `metrics.jsonl` and on the dashboard run
 page.
 
+DQN is implemented and verified end to end but has not been trained to
+completion (a 300k-step run is ~6 hours on CPU), so it has no row in this
+table yet. Evaluate it with `bash run.sh eval_dqn --run <run_dir>` once it has
+trained; the results merge into the same `baselines.json`.
+
 ## Tests
 
 ```bash
@@ -254,8 +373,12 @@ To run only the emulator-free tests:
 export PYTHONPATH="$PWD"
 pytest tests/test_preprocessing.py tests/test_reward.py tests/test_rollout_buffer.py \
        tests/test_logger.py tests/test_evaluation.py tests/test_checkpoint.py \
-       tests/test_ppo.py tests/test_trainer.py tests/test_policies.py tests/test_config.py
+       tests/test_ppo.py tests/test_trainer.py tests/test_policies.py tests/test_config.py \
+       tests/test_replay_buffer.py tests/test_dqn.py tests/test_dqn_trainer.py
 ```
+
+The DQN tests are emulator-free too, and can also be run on their own with
+`pytest -k dqn`.
 
 ## Dashboard
 
@@ -266,6 +389,12 @@ bash scripts/start_dashboard.sh       # http://localhost:8000
 Pages: **Overview** (all runs), **Train** (launch/stop training), **Grid
 Search** (hyper-parameter sweeps), **Play** (live game view of a checkpoint)
 and **Results** (baseline statistics, plots and policy comparison).
+
+The **Train** page has an algorithm selector: choosing DQN shows the DQN
+hyperparameters (total steps, buffer size, batch size, epsilon schedule,
+target update frequency) and launches `scripts/train_dqn.py` instead of
+`scripts/train.py`. The run pages read `loss`/`td_error` for DQN runs and
+`policy_loss`/`value_loss` for PPO runs.
 
 ## Project layout
 
@@ -279,23 +408,31 @@ src/
   algorithms/
     cnn.py                 CNN policy/value network
     ppo.py                 PPO agent (act, GAE, normalized-value critic, clipped minibatch updates)
+    dqn.py                 DQN agent (epsilon-greedy, target network, Huber TD loss)
   training/
     rollout_buffer.py      Trajectory storage for on-policy training
+    replay_buffer.py       Circular transition buffer for off-policy (DQN) training
     runner.py              Runs episodes and collects rollouts
     trainer.py             PPO training loop (rollout -> GAE -> update -> checkpoint)
+    dqn_trainer.py         DQN training loop (act -> store -> sample -> gradient step)
     logger.py              Per-step records and per-episode statistics
     checkpoint.py          Save/load models, keep top-k by score plus best
     config.py              YAML config load/save, seeding, device resolution
   policies/
     baselines.py           Random and constant baseline policies
     ppo_policy.py          Loads a trained checkpoint for play/eval (sampled or greedy)
+    dqn_policy.py          Loads a trained checkpoint for play/eval (epsilon-greedy)
   evaluation/
     evaluation.py          Shared evaluation for every agent
 scripts/
   train.py               Train PPO (./run.sh train)
-  play_mario.py          Watch a policy play (random/right/ppo --checkpoint ...)
+  train_dqn.py           Train DQN (./run.sh train_dqn)
+  play_mario.py          Watch a policy play (random/right/ppo/dqn --checkpoint ...)
   evaluate_baseline.py   Evaluate baselines with the shared harness
   evaluate_ppo.py        Evaluate a trained PPO run and merge into the comparison
+  evaluate_dqn.py        Evaluate a trained DQN run (greedy + eps=0.05) and merge
+  verify_dqn.py          Smoke test: env + agent + buffer + a gradient step
+  verify_dashboard.py    Check the dashboard dispatch and template rendering
   analyze_results.py     Calculate statistics with pandas
   plot_results.py        Generate plots from saved results
   full_analysis.py       End-to-end baseline analysis (eval + analyze + plot)
@@ -305,7 +442,8 @@ scripts/
   start_dashboard.sh     Start the dashboard in the background
   train_daemon.sh        Daemonized training that auto-resumes on crash
 configs/
-  ppo.yaml               Default training configuration
+  ppo.yaml               Default PPO training configuration
+  dqn.yaml               Default DQN training configuration
   baselines.yaml         Baseline policies for evaluation
 tests/                   pytest suite (fakes.py is an emulator-free fake environment)
 dashboard/
@@ -339,6 +477,13 @@ env.close()
 - Milestone 2 (PPO): done. PPO trains and clears the level (82% sampled /
   100% greedy completion), via `src/algorithms/ppo.py` + `src/training/trainer.py`,
   run with `./run.sh train`
+- Milestone 3 (DQN): implemented and verified end to end, via
+  `src/algorithms/dqn.py` + `src/training/dqn_trainer.py`, run with
+  `./run.sh train_dqn`. The implementation is complete (replay buffer, target
+  network, epsilon annealing, checkpoint/resume, evaluation harness, dashboard
+  integration) and the full test suite passes. It has **not** been trained to
+  completion yet, so there are no DQN results to report: a full 300k-step run
+  takes roughly 6 hours on CPU at ~12-20 steps/s.
 
 ## Sharing model weights
 

@@ -2,14 +2,17 @@
 
 Usage: ./run.sh play  (or: python scripts/play_mario.py --policy right --episodes 3)
 
---policy is 'random', 'right', or 'ppo'. 'ppo' loads a trained checkpoint
-(produced by scripts/train.py) and needs the preprocessed training
-observations, so it runs in a make_training_environment instead of the raw
-one the baselines use. The network architecture and frame settings are read
-from the config.yaml of the run the checkpoint belongs to
+--policy is 'random', 'right', 'ppo' or 'dqn'. 'ppo' and 'dqn' load a trained
+checkpoint (produced by scripts/train.py and scripts/train_dqn.py) and need
+the preprocessed training observations, so they run in a
+make_training_environment instead of the raw one the baselines use. The
+network architecture and frame settings are read from the config.yaml of the
+run the checkpoint belongs to
 (<run>/checkpoints/best.pt -> <run>/config.yaml).
 
---greedy plays the most likely action instead of sampling.
+--greedy plays the most likely action instead of sampling. For DQN that means
+epsilon = 0 (argmax); without it the standard evaluation epsilon of 0.05 is
+used.
 
 --fps controls playback speed (agent steps per second). Default 15 is
 approximately real-time for frame_skip=4 on the NES (60 FPS / 4).
@@ -24,6 +27,7 @@ import time
 from src.algorithms.cnn import ConvolutionalNeuralNetwork
 from src.environment.mario_environment import MarioEnvironment, make_training_environment
 from src.policies.baselines import ConstantPolicy, RandomPolicy
+from src.policies.dqn_policy import DQNPolicy
 from src.policies.ppo_policy import PPOPolicy
 from src.training.config import load_config
 from src.training.logger import Logger
@@ -46,6 +50,18 @@ def make_policy(name, num_actions, checkpoint=None, device="cpu", config=None, d
             frame_size=config.get("frame_size", 84),
         )
         return PPOPolicy(model, checkpoint_path=checkpoint, device=device, deterministic=deterministic)
+    if name == "dqn":
+        config = config or {}
+        model = ConvolutionalNeuralNetwork(
+            output_dim=num_actions,
+            conv_channels=tuple(config.get("conv_channels", [32, 64, 64])),
+            hidden_dim=config.get("hidden_dim", 512),
+            frame_size=config.get("frame_size", 84),
+        )
+        # --greedy plays the argmax action; otherwise the standard DQN
+        # evaluation epsilon (5% random actions) is used.
+        epsilon = 0.0 if deterministic else 0.05
+        return DQNPolicy(model, checkpoint_path=checkpoint, device=device, epsilon=epsilon)
     if name == "random":
         return RandomPolicy(num_actions=num_actions)
     return ConstantPolicy(action=1)
@@ -53,9 +69,9 @@ def make_policy(name, num_actions, checkpoint=None, device="cpu", config=None, d
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--policy", choices=["random", "right", "ppo"], default="random")
+    parser.add_argument("--policy", choices=["random", "right", "ppo", "dqn"], default="random")
     parser.add_argument("--checkpoint", type=str, default=None,
-                        help="trained policy checkpoint (required for --policy ppo)")
+                        help="trained policy checkpoint (required for --policy ppo/dqn)")
     parser.add_argument("--episodes", type=int, default=3)
     parser.add_argument("--timeout", type=int, default=2000, help="max steps per episode")
     parser.add_argument("--device", type=str, default="cpu")
@@ -66,13 +82,13 @@ def main():
                         help="save rendered frames as PNGs to this directory")
     args = parser.parse_args()
 
-    if args.policy == "ppo" and args.checkpoint is None:
-        parser.error("--policy ppo requires --checkpoint")
+    if args.policy in ("ppo", "dqn") and args.checkpoint is None:
+        parser.error(f"--policy {args.policy} requires --checkpoint")
 
-    # PPO acts on preprocessed stacks, so it needs the training env, built with
-    # the same frame settings the checkpoint was trained with.
+    # PPO and DQN act on preprocessed stacks, so they need the training env,
+    # built with the same frame settings the checkpoint was trained with.
     config = {}
-    if args.policy == "ppo":
+    if args.policy in ("ppo", "dqn"):
         config = run_config_for(args.checkpoint)
         environment = make_training_environment(
             frame_skip=config.get("frame_skip", 4),

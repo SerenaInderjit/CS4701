@@ -12,6 +12,14 @@ class RewardConfig:
     flag_bonus: float = 15.0          # reached the flag (level complete)
     reward_clip: float = 15.0         # final reward is clipped to [-clip, clip]
 
+    # Dense-only clipping. PPO leaves this off (clip_dense=False) and keeps the
+    # original behaviour. DQN turns it on: the dense part (progress minus time
+    # penalty) is bounded to [-dense_clip, dense_clip] *before* the terminal
+    # bonus/penalty is added, so the flag bonus and the death penalty stay
+    # readable instead of being flattened into the same +/-1 as a single step.
+    clip_dense: bool = False
+    dense_clip: float = 1.0
+
 
 class RewardShaper:
     """Replaces the built-in reward with a shaped one.
@@ -23,6 +31,10 @@ class RewardShaper:
 
     The shaper is stateful (it remembers the previous x_pos / clock), so call
     `reset()` at the start of every episode. MarioEnvironment does this.
+
+    With `clip_dense` enabled the dense part is clipped on its own and the
+    terminal bonus/penalty is added afterwards, so it is not scaled away by
+    the dense clip (see RewardConfig).
     """
 
     def __init__(self, config: Optional[RewardConfig] = None):
@@ -50,6 +62,9 @@ class RewardShaper:
 
         reward = cfg.x_progress_weight * delta_x - cfg.time_penalty_weight * ticks
 
+        if cfg.clip_dense:
+            reward = max(-cfg.dense_clip, min(cfg.dense_clip, reward))
+
         if episode_ended:
             if info.get("flag_get", False):
                 reward += cfg.flag_bonus
@@ -59,3 +74,23 @@ class RewardShaper:
                 reward += cfg.death_penalty
 
         return float(max(-cfg.reward_clip, min(cfg.reward_clip, reward)))
+
+
+def reward_config_from_dict(config: Dict[str, Any]) -> RewardConfig:
+    """Build a RewardConfig from a run's config dict.
+
+    `reward_scale` (when present) multiplies every weight, which is how PPO
+    runs scale the reward. DQN configs set the weights directly and have no
+    `reward_scale`, so they are used as-is.
+    """
+    base = RewardConfig()
+    scale = config.get("reward_scale", 1.0)
+    return RewardConfig(
+        x_progress_weight=config.get("x_progress_weight", base.x_progress_weight) * scale,
+        time_penalty_weight=config.get("time_penalty_weight", base.time_penalty_weight) * scale,
+        death_penalty=config.get("death_penalty", base.death_penalty) * scale,
+        flag_bonus=config.get("flag_bonus", base.flag_bonus) * scale,
+        reward_clip=config.get("reward_clip", base.reward_clip) * scale,
+        clip_dense=config.get("clip_dense", base.clip_dense),
+        dense_clip=config.get("dense_clip", base.dense_clip),
+    )

@@ -49,7 +49,7 @@
         const presetSelect = document.getElementById('configPreset');
 
         // Field definitions: key -> {label, type, min, max, step}
-        const NUMERIC_FIELDS = [
+        const PPO_FIELDS = [
             ['updates', 'Updates', 1, 100000, 1],
             ['rollout_size', 'Rollout Size', 8, 8192, 8],
             ['seed', 'Seed', 0, 999999, 1],
@@ -66,34 +66,73 @@
             ['frame_size', 'Frame Size', 32, 256, 4],
         ];
 
+        const DQN_FIELDS = [
+            ['total_steps', 'Total Steps', 1, 100000000, 1],
+            ['buffer_size', 'Replay Buffer Size', 100, 1000000, 100],
+            ['batch_size', 'Batch Size', 1, 4096, 1],
+            ['target_update_freq', 'Target Update Freq (steps)', 1, 100000, 1],
+            ['epsilon_start', 'Epsilon Start', 0, 1, 0.01],
+            ['epsilon_end', 'Epsilon End', 0, 1, 0.01],
+            ['epsilon_decay_steps', 'Epsilon Decay Steps', 1, 10000000, 1],
+            ['train_start', 'Train Start (burn-in steps)', 0, 10000000, 1],
+            ['log_every', 'Log Every (steps)', 1, 100000, 1],
+            ['eval_every', 'Eval Every (steps, 0 = off)', 0, 1000000, 1],
+            ['eval_episodes', 'Eval Episodes', 1, 100, 1],
+            ['seed', 'Seed', 0, 999999, 1],
+            ['checkpoint_every', 'Checkpoint Every (steps)', 1, 1000000, 1],
+            ['learning_rate', 'Learning Rate', 1e-6, 1, 1e-6],
+            ['gamma', 'Gamma', 0, 1, 0.01],
+            ['hidden_dim', 'Hidden Dim', 16, 8192, 16],
+            ['frame_skip', 'Frame Skip', 1, 16, 1],
+            ['num_stack', 'Frame Stack', 1, 16, 1],
+            ['frame_size', 'Frame Size', 32, 256, 4],
+        ];
+
+        const FIELDS_BY_ALGO = { ppo: PPO_FIELDS, dqn: DQN_FIELDS };
+
+        function currentAlgo() {
+            const cfg = presets[presetSelect.value] || {};
+            return cfg.algorithm === 'dqn' ? 'dqn' : 'ppo';
+        }
+
+        function currentFields() {
+            return FIELDS_BY_ALGO[currentAlgo()];
+        }
+
         const form = document.getElementById('configForm');
-        const firstCfg = presets[Object.keys(presets)[0]] || {};
-        form.innerHTML = '<div class="form-grid">' + NUMERIC_FIELDS.map(([key, label, min, max, step]) =>
-            `<div class="form-group">
-                <label>${label}:</label>
-                <input type="number" id="f_${key}" min="${min}" max="${max}" step="${step}">
-                <span class="hint">range ${min}–${max}, default ${firstCfg[key] !== undefined ? firstCfg[key] : '-'}</span>
-            </div>`).join('') +
-            `<div class="form-group">
-                <label>Conv Channels (comma separated):</label>
-                <input type="text" id="f_conv_channels">
-                <span class="hint">e.g. 64,128,128</span>
-            </div>
-            <div class="form-group">
-                <label>Device:</label>
-                <select id="f_device">
-                    <option value="auto">auto</option>
-                    <option value="mps">mps</option>
-                    <option value="cuda">cuda</option>
-                    <option value="cpu">cpu</option>
-                </select>
-                <span class="hint">default: auto</span>
-            </div>
-            <div class="form-group">
-                <label>Checkpoint Dir:</label>
-                <select id="f_checkpoint_dir"></select>
-                <span class="hint">sub-directory name inside each run's folder</span>
-            </div></div>`;
+
+        function renderForm() {
+            const fields = currentFields();
+            const firstCfg = presets[presetSelect.value] || {};
+            form.innerHTML = '<div class="form-grid">' + fields.map(([key, label, min, max, step]) =>
+                `<div class="form-group">
+                    <label>${label}:</label>
+                    <input type="number" id="f_${key}" min="${min}" max="${max}" step="${step}">
+                    <span class="hint">range ${min}–${max}, default ${firstCfg[key] !== undefined ? firstCfg[key] : '-'}</span>
+                </div>`).join('') +
+                `<div class="form-group">
+                    <label>Conv Channels (comma separated):</label>
+                    <input type="text" id="f_conv_channels">
+                    <span class="hint">e.g. 64,128,128</span>
+                </div>
+                <div class="form-group">
+                    <label>Device:</label>
+                    <select id="f_device">
+                        <option value="auto">auto</option>
+                        <option value="mps">mps</option>
+                        <option value="cuda">cuda</option>
+                        <option value="cpu">cpu</option>
+                    </select>
+                    <span class="hint">default: auto</span>
+                </div>
+                <div class="form-group">
+                    <label>Checkpoint Dir:</label>
+                    <select id="f_checkpoint_dir"></select>
+                    <span class="hint">sub-directory name inside each run's folder</span>
+                </div></div>`;
+        }
+
+        renderForm();
 
         fetch('/api/checkpoint_dirs').then(r => r.json()).then(dirs => {
             const sel = document.getElementById('f_checkpoint_dir');
@@ -107,7 +146,8 @@
 
         function loadPreset() {
             const cfg = presets[presetSelect.value] || {};
-            for (const [key] of NUMERIC_FIELDS) {
+            renderForm();
+            for (const [key] of currentFields()) {
                 if (cfg[key] !== undefined) document.getElementById('f_' + key).value = cfg[key];
             }
             if (cfg.conv_channels) document.getElementById('f_conv_channels').value = cfg.conv_channels.join(',');
@@ -124,8 +164,12 @@
 
         function buildConfig() {
             const errors = [];
-            const config = {};
-            for (const [key, label, min, max, step] of NUMERIC_FIELDS) {
+            const config = { algorithm: currentAlgo() };
+            const integerKeys = new Set(['total_steps', 'buffer_size', 'batch_size', 'target_update_freq',
+                'epsilon_decay_steps', 'train_start', 'log_every', 'eval_every', 'eval_episodes', 'seed',
+                'checkpoint_every', 'epochs', 'minibatch_size', 'rollout_size', 'updates', 'hidden_dim',
+                'frame_skip', 'num_stack', 'frame_size']);
+            for (const [key, label, min, max, step] of currentFields()) {
                 const el = document.getElementById('f_' + key);
                 const v = parseFloat(el.value);
                 if (el.value === '' || isNaN(v)) {
@@ -133,7 +177,7 @@
                 } else if (v < min || v > max) {
                     errors.push(`${label} must be between ${min} and ${max}`);
                 } else {
-                    config[key] = (step >= 1 && key !== 'learning_rate' && key !== 'gamma' && key !== 'gae_lambda' && key !== 'epsilon') ? parseInt(el.value) : v;
+                    config[key] = integerKeys.has(key) ? parseInt(el.value) : v;
                 }
             }
             const channels = document.getElementById('f_conv_channels').value.split(',').map(s => parseInt(s.trim()));

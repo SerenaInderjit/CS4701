@@ -17,6 +17,10 @@
     <main>
         <h2>{{ run.id }}</h2>
 
+        {% set last = run.metrics[-1] if run.metrics else none %}
+        {% set loss_metric = 'loss' if last and 'loss' in last else 'policy_loss' %}
+        {% set err_metric = 'td_error' if last and 'td_error' in last else 'value_loss' %}
+
         <div class="stats">
             <div class="stat">
                 <span class="label">Updates</span>
@@ -50,8 +54,8 @@
 
         <h3>Matplotlib Plots</h3>
         <div class="plots">
-            <img src="/api/run/{{ run.id }}/plot/policy_loss" alt="policy_loss">
-            <img src="/api/run/{{ run.id }}/plot/value_loss" alt="value_loss">
+            <img src="/api/run/{{ run.id }}/plot/{{ loss_metric }}" alt="{{ loss_metric }}">
+            <img src="/api/run/{{ run.id }}/plot/{{ err_metric }}" alt="{{ err_metric }}">
             <img src="/api/run/{{ run.id }}/plot/mean_distance" alt="mean_distance">
             <img src="/api/run/{{ run.id }}/plot/mean_reward" alt="mean_reward">
         </div>
@@ -88,14 +92,20 @@
             const metrics = await fetchMetrics();
             const labels = metrics.map((_, i) => i + 1);
 
-            const update = (chart, key) => {
+            // PPO reports policy_loss/value_loss, DQN reports loss/td_error.
+            const update = (chart, ...keys) => {
                 chart.data.labels = labels;
-                chart.data.datasets[0].data = metrics.map(m => m[key]);
+                chart.data.datasets[0].data = metrics.map(m => {
+                    for (const k of keys) {
+                        if (m[k] !== undefined && m[k] !== null) return m[k];
+                    }
+                    return null;
+                });
                 chart.update('none');
             };
 
-            update(charts.policyLoss, 'policy_loss');
-            update(charts.valueLoss, 'value_loss');
+            update(charts.policyLoss, 'policy_loss', 'loss');
+            update(charts.valueLoss, 'value_loss', 'td_error');
             update(charts.distance, 'mean_distance');
             update(charts.reward, 'mean_reward');
         }

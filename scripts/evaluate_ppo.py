@@ -18,7 +18,7 @@ import os
 
 from src.algorithms.cnn import ConvolutionalNeuralNetwork
 from src.environment.mario_environment import make_training_environment
-from src.environment.reward import RewardConfig
+from src.environment.reward import reward_config_from_dict
 from src.evaluation.evaluation import evaluate, format_evaluation, save_evaluation
 from src.policies.ppo_policy import PPOPolicy
 from src.training.config import load_config, resolve_device
@@ -33,18 +33,6 @@ def wilson_interval(successes, n, z=1.96):
     centre = (p + z * z / (2 * n)) / denom
     half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom
     return max(0.0, centre - half), min(1.0, centre + half)
-
-
-def reward_config_from(config):
-    base = RewardConfig()
-    s = config.get("reward_scale", 1.0)
-    return RewardConfig(
-        x_progress_weight=config.get("x_progress_weight", base.x_progress_weight) * s,
-        time_penalty_weight=config.get("time_penalty_weight", base.time_penalty_weight) * s,
-        death_penalty=config.get("death_penalty", base.death_penalty) * s,
-        flag_bonus=config.get("flag_bonus", base.flag_bonus) * s,
-        reward_clip=config.get("reward_clip", base.reward_clip) * s,
-    )
 
 
 def main():
@@ -66,7 +54,7 @@ def main():
         frame_skip=config["frame_skip"],
         num_stack=config["num_stack"],
         frame_size=(config["frame_size"], config["frame_size"]),
-        reward_config=reward_config_from(config),
+        reward_config=reward_config_from_dict(config),
     )
 
     all_results = {}

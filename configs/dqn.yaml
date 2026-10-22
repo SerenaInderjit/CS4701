@@ -1,0 +1,61 @@
+# Default configuration for scripts/train_dqn.py (DQN on Super Mario Bros 1-1).
+# Any value here can be overridden from the command line, e.g.:
+#   ./run.sh train_dqn --total-steps 100000 --device cpu
+
+algorithm: dqn           # tells the dashboard which training script to launch
+
+# Training loop
+total_steps: 300000      # environment steps (not gradient steps)
+seed: 0                  # torch / numpy / random seed
+checkpoint_every: 20000  # save a checkpoint every N steps (and at the end)
+checkpoint_dir: checkpoints
+
+# Agent
+learning_rate: 0.00025
+lr_anneal: true          # linearly decay learning rate to 0 over the run
+gamma: 0.99
+batch_size: 64
+target_update_freq: 1000 # gradient steps between target-network syncs
+max_grad_norm: 10.0
+
+# Exploration (epsilon-greedy)
+epsilon_start: 1.0      # pure random at the start of the run
+epsilon_end: 0.05       # 5% random actions once the schedule is done
+epsilon_decay_steps: 50000
+
+# Network (the standard Nature-DQN architecture: 32/64/64 conv, 512 dense)
+conv_channels: [32, 64, 64]
+hidden_dim: 512
+
+# Replay buffer
+buffer_size: 30000       # ~1.7 GB of RAM: 2 * 4 * 84 * 84 bytes per transition
+train_start: 2000        # environment steps of pure exploration before training
+
+# Environment
+frame_skip: 4
+num_stack: 4
+frame_size: 84
+
+# Reward shaping. The dense part (progress minus time penalty) is clipped to
+# [-dense_clip, dense_clip]; the flag bonus and death penalty are added
+# afterwards so they are not flattened into the same range as one step.
+# x_progress_weight is small because the clip would otherwise saturate on
+# every step: Mario moves ~8-11 px per step, so 0.05 gives ~+0.4-0.5.
+x_progress_weight: 0.05
+time_penalty_weight: 0.01
+death_penalty: -1.0
+flag_bonus: 1.0
+reward_clip: 2.0
+clip_dense: true
+dense_clip: 1.0
+
+# Logging and evaluation
+log_every: 1000
+eval_every: 10000       # 0 disables the periodic greedy evaluation
+eval_episodes: 3
+eval_timeout: 2000
+
+# Hardware
+# Device is auto-detected: MPS (Apple Silicon) > CUDA (NVIDIA) > CPU.
+# Override on the command line if needed: --device cpu, --device cuda, --device mps
+device: auto

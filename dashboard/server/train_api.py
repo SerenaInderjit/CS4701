@@ -16,6 +16,12 @@ router = APIRouter()
 # Track running training process
 _training_process: Optional[subprocess.Popen] = None
 
+# Which training script handles which algorithm.
+ALGORITHM_SCRIPTS = {
+    "ppo": "scripts/train.py",
+    "dqn": "scripts/train_dqn.py",
+}
+
 
 @router.post("/api/train")
 async def api_train(config: Dict[str, Any]):
@@ -24,6 +30,11 @@ async def api_train(config: Dict[str, Any]):
     if _training_process is not None and _training_process.poll() is None:
         raise HTTPException(status_code=400, detail="Training already running")
 
+    algorithm = config.get("algorithm", "ppo")
+    script = ALGORITHM_SCRIPTS.get(algorithm)
+    if script is None:
+        raise HTTPException(status_code=400, detail=f"Unknown algorithm '{algorithm}'")
+
     config_path = ROOT / "data" / f"dashboard_{datetime.now():%Y%m%d_%H%M%S}.yaml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     with open(config_path, "w") as f:
@@ -31,12 +42,12 @@ async def api_train(config: Dict[str, Any]):
 
     log_file = open(RUNS_DIR / f"dashboard_train_{datetime.now():%Y%m%d_%H%M%S}.log", "w")
     _training_process = subprocess.Popen(
-        [sys.executable, "scripts/train.py", "--config", str(config_path)],
+        [sys.executable, script, "--config", str(config_path)],
         cwd=ROOT,
         stdout=log_file,
         stderr=log_file,
     )
-    return {"status": "started", "pid": _training_process.pid}
+    return {"status": "started", "pid": _training_process.pid, "algorithm": algorithm}
 
 
 @router.post("/api/train/stop")
